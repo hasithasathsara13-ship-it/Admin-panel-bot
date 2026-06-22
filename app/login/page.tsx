@@ -249,18 +249,23 @@ function LoginPageContent() {
             </div>
           </div>
 
-          <div className="relative hidden min-h-[620px] bg-zinc-950 lg:block">
-            <div className="absolute inset-0">
-              <Spline
-                scene="https://prod.spline.design/GIvYSreUPC2K0pGA/scene.splinecode"
-                onLoad={onSplineLoad}
-              />
-            </div>
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-            <div className="pointer-events-none absolute bottom-8 left-8 right-8 text-white">
-              <p className="text-4xl font-semibold leading-tight" />
-              <p className="mt-3 max-w-sm text-sm text-white/75" />
-            </div>
+          <div className="relative hidden h-full min-h-[620px] bg-zinc-950 lg:block overflow-hidden">
+            <Spline
+              scene="https://prod.spline.design/E2X2PCynG70f138U/scene.splinecode"
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+              onLoad={(splineApp) => {
+                // Restart all animations every 10 seconds to simulate looping
+                const restart = () => {
+                  try {
+                    splineApp.stop();
+                    splineApp.play();
+                  } catch { /* ignore */ }
+                };
+                // Get approximate animation duration and loop
+                const interval = setInterval(restart, 10000);
+                (window as unknown as Record<string, unknown>).__splineInterval = interval;
+              }}
+            />
           </div>
         </div>
       </div>

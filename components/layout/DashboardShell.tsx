@@ -40,6 +40,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     nextDue: string | null;
     graceEndsIso: string | null;
     quotaHardBlock: boolean;
+    dueIn1Day: boolean;
   } | null>(null);
 
   const isLoginRoute = pathname === "/login";
@@ -439,6 +440,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         nextDue,
         graceEndsIso: graceEndsAtIso(nextDue),
         quotaHardBlock,
+        dueIn1Day: (() => {
+          if (!nextDue || subscriptionStatus !== "active") return false;
+          const due = new Date(nextDue);
+          if (Number.isNaN(due.getTime())) return false;
+          const diff = due.getTime() - Date.now();
+          const hoursLeft = diff / (1000 * 60 * 60);
+          return hoursLeft > 0 && hoursLeft <= 24;
+        })(),
       });
     }
 
@@ -512,6 +521,25 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               upgrade — contact support.
             </div>
           ) : null}
+
+          {/* 1-day renewal warning banner — only on dashboard */}
+          {pathname === "/dashboard" && billingOverlay?.dueIn1Day && !billingOverlay.blockMain && !billingOverlay.paymentDueGrace ? (
+            <div className="border-b border-amber-300 bg-amber-50 px-4 py-2.5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-amber-900">
+                <svg className="h-4 w-4 flex-shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                </svg>
+                <span><strong>Your subscription expires tomorrow.</strong> Renew now to avoid service interruption.</span>
+              </div>
+              <Link
+                href="/settings"
+                className="flex-shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600 transition-colors"
+              >
+                Renew Now
+              </Link>
+            </div>
+          ) : null}
+
           <main
             className={[
               "relative flex min-h-0 flex-1 flex-col animate-fade-in",

@@ -32,6 +32,19 @@ function fmt(iso: string | null | undefined): string {
   return d.toLocaleString();
 }
 
+function daysLeft(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const now = Date.now();
+  const diff = d.getTime() - now;
+  const days = Math.ceil(diff / (24 * 60 * 60 * 1000));
+  if (days < 0) return `${Math.abs(days)}d overdue`;
+  if (days === 0) return "Due today";
+  if (days === 1) return "1 day left";
+  return `${days} days left`;
+}
+
 export default function VeloBusinessesPage() {
   const router = useRouter();
   const [rows, setRows] = useState<BusinessRow[]>([]);
@@ -532,7 +545,7 @@ export default function VeloBusinessesPage() {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-white/80">
-                      {fmt(r.billing_next_due_at)}
+                      {daysLeft(r.billing_next_due_at)}
                     </td>
                     <td
                       className="px-4 py-3 font-mono text-xs text-white/90"

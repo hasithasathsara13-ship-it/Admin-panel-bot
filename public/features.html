@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Velo.ai — Platform Features</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      color: #e2e8f0;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 60px 24px;
+    }
+    .hero {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+    .hero h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #6366f1, #a78bfa, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+    .hero p {
+      font-size: 1.15rem;
+      color: #94a3b8;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .section {
+      margin-bottom: 48px;
+    }
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .section-title .icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .section-title h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .feature-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 20px;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .feature-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(99,102,241,0.4);
+    }
+    .feature-card h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #f1f5f9;
+      margin-bottom: 6px;
+    }
+    .feature-card p {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-core { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+    .badge-whatsapp { background: rgba(37,211,102,0.2); color: #25d366; }
+    .badge-admin { background: rgba(251,191,36,0.2); color: #fbbf24; }
+    .badge-billing { background: rgba(244,63,94,0.2); color: #fb7185; }
+
+    .icon-chat { background: linear-gradient(135deg, #25d366, #128c7e); }
+    .icon-broadcast { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+    .icon-products { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .icon-orders { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+    .icon-admin { background: linear-gradient(135deg, #ec4899, #be185d); }
+    .icon-billing { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .icon-settings { background: linear-gradient(135deg, #64748b, #475569); }
+
+    footer {
+      text-align: center;
+      padding: 40px 24px;
+      color: #64748b;
+      font-size: 0.85rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin-top: 40px;
+    }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 2rem; }
+      .features-grid { grid-template-columns: 1fr; }
+      .container { padding: 40px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <h1>Velo.ai Platform</h1>
+      <p>Complete WhatsApp Business automation with AI-powered chat, bulk messaging, product management, and multi-tenant admin panel.</p>
+    </div>
+
+    <!-- WhatsApp Chat -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon icon-chat">💬</div>
+        <h2>WhatsApp Business Chat</h2>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="badge badge-whatsapp">Core</span>
+          <h3>Real-time Messaging</h3>
+          <p>Send and receive WhatsApp messages in real-time with Supabase Realtime subscriptions. Messages appear instantly without page refresh.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-whatsapp">Core</span>
+          <h3>24-Hour Window Management</h3>
+          <p>Automatic detection of WhatsApp's 24-hour messaging window. Input disables when window closes, prompts to use template messages.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-whatsapp">Core</span>
+          <h3>Template Messages</h3>
+          <p>Send pre-approved Meta template messages to re-engage customers after the 24-hour window expires. Supports hello_world and custom templates.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-whatsapp">Core</span>
+          <h3>Image Sending & Receiving</h3>
+          <p>Send images to customers and view received images with hover-to-download functionality. Supports JPEG, PNG, and WebP.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-whatsapp">Core</span>
+          <h3>Voice Notes</h3>
+          <p>Record and send voice messages directly from the dashboard. Receive and play back customer voice notes with audio player.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-whatsapp">Core</span>
+          <h3>Document Support (PDF, Word, Excel)</h3>
+          <p>View and download documents sent by customers. Shows document type icon, file label, and one-click download button.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-whatsapp">Core</span>
+          <h3>Video Support</h3>
+          <p>Receive and play video messages from customers with built-in video player in chat bubbles.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-whatsapp">Core</span>
+          <h3>Message Reply & Edit</h3>
+          <p>Reply to specific messages with quoted preview. Edit sent messages directly from the dashboard with edit history tracking.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-whatsapp">Core</span>
+          <h3>Unread Message Indicators</h3>
+          <p>WhatsApp-style unread badges with count. Bold text and green timestamp for conversations with unread messages.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-whatsapp">Core</span>
+          <h3>Contact Management</h3>
+          <p>Save customer phone numbers with custom names. Search contacts by name or number in the conversation list.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-whatsapp">Core</span>
+          <h3>Bot Toggle (Human Handoff)</h3>
+          <p>Toggle AI bot on/off per conversation. Auto-re-enables after 20 minutes. Visual indicator shows bot status.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-whatsapp">Core</span>
+          <h3>Resizable Panel</h3>
+          <p>Drag-to-resize the conversation list panel on desktop. Adjusts between 15% and 50% width for optimal workflow.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Broadcast -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon icon-broadcast">📢</div>
+        <h2>Bulk Broadcast</h2>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Audience Filtering</h3>
+          <p>Filter contacts by activity: All contacts, active in 7 days, active in 30 days, inactive 30+ days for re-engagement campaigns.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Manual Number Entry</h3>
+          <p>Paste phone numbers directly or type them in. Supports comma-separated, semicolon-separated, or one per line format.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Spreadsheet Import (.csv / .xlsx)</h3>
+          <p>Upload CSV or Excel files to extract phone numbers automatically. Numbers are parsed from the first column.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Template Broadcast</h3>
+          <p>Send pre-approved template messages to multiple contacts at once. Works outside the 24-hour window for maximum reach.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Custom Text Broadcast</h3>
+          <p>Send freeform text messages to recently active contacts (within 24h window). Up to 4096 characters.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Select/Deselect Recipients</h3>
+          <p>Cherry-pick specific contacts or select all. Search and filter within the contact list before sending.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Rate-Limited Sending</h3>
+          <p>100ms delay between messages, max 500 recipients per broadcast. Prevents Meta API throttling and account restrictions.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Broadcast Results & Error Reporting</h3>
+          <p>Detailed results showing sent/failed counts with per-number error details. Broadcast history logged to database.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Safety</span>
+          <h3>Ban Risk Warning</h3>
+          <p>In-app warning modal when using manual entry. Explains account ban risks and WhatsApp policy requirements before proceeding.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Products & Reviews -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon icon-products">📦</div>
+        <h2>Products & Reviews</h2>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Product Catalog</h3>
+          <p>Add, edit, and delete products with name, description, price, category, stock count, and up to 4 images per product.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Image Upload with Drag & Drop</h3>
+          <p>Upload product images via drag-and-drop or file picker. Images stored in Supabase Storage with public URLs.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Product Filters</h3>
+          <p>Filter by All Products, Featured, On Sale, or Out of Stock. Search products by name or category.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Stock Management</h3>
+          <p>Track stock counts with low stock alerts (below 5 units). Support for unlimited stock option.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Customer Reviews (Screenshots)</h3>
+          <p>Upload up to 6 review screenshots. Add optional external reviews link (Google, Facebook). Send reviews to customers via WhatsApp.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Send Reviews via WhatsApp</h3>
+          <p>One-click send all review screenshots and review link to any customer directly from the chat interface.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Complete Storage Cleanup</h3>
+          <p>Deleting product images or review screenshots removes both the database reference and the actual file from Supabase Storage.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orders & Customers -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon icon-orders">🛒</div>
+        <h2>Orders & Customers</h2>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Order Management</h3>
+          <p>View all orders with status tracking (pending, confirmed, shipped, delivered, cancelled). Update order status from the dashboard.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Customer Insights</h3>
+          <p>Auto-derived customer list from orders. Shows order count, last order date, and last purchased product per customer.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Delivery Notifications</h3>
+          <p>WhatsApp delivery status notifications to customers when order status changes. Automated via webhook.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Platform Admin (Velo) -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon icon-admin">👑</div>
+        <h2>Platform Admin Panel (Velo)</h2>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="badge badge-admin">Admin</span>
+          <h3>Analytics Dashboard</h3>
+          <p>Platform-wide analytics: MRR/ARR revenue, messages volume (30d), merchant GMV, workspace signups with interactive charts.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-admin">Admin</span>
+          <h3>Business Management</h3>
+          <p>View all businesses, change plans/cycles, mark paid, set subscription status, manage brand voice per workspace.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-admin">Admin</span>
+          <h3>Create Businesses</h3>
+          <p>Add new business workspaces from the admin panel with name, email, WhatsApp number, category, and brand voice.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-admin">Admin</span>
+          <h3>Revenue Breakdown</h3>
+          <p>MRR by plan (Starter, Growth, Scale), paying workspace count, past due and canceled subscription tracking.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-admin">Admin</span>
+          <h3>Secure Cookie Auth</h3>
+          <p>HMAC-signed HttpOnly session cookies for admin API access. Supabase email-based admin detection or password login fallback.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Billing -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon icon-billing">💳</div>
+        <h2>Billing & Subscriptions</h2>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="badge badge-billing">Billing</span>
+          <h3>Plan Tiers (Starter, Growth, Scale)</h3>
+          <p>Three pricing tiers with monthly/yearly billing cycles. Message quotas and feature limits per plan.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-billing">Billing</span>
+          <h3>Grace Period & Hard Block</h3>
+          <p>Configurable grace days for past-due accounts. Hard block messaging when quota exceeded. Courtesy WhatsApp to owner at 100% usage.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-billing">Billing</span>
+          <h3>Usage Tracking</h3>
+          <p>Automatic message counting per billing period. Increment on each inbound WhatsApp message via database RPC.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-billing">Billing</span>
+          <h3>Mark Paid</h3>
+          <p>Admin can mark subscriptions as paid, resetting billing cycle and re-enabling messaging for the workspace.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings & Auth -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon icon-settings">⚙️</div>
+        <h2>Settings & Authentication</h2>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Supabase Auth (Email/Password)</h3>
+          <p>Secure login with Supabase Auth. Auto-creates business workspace on first login. Session persistence with token refresh.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Multi-Tenant Architecture</h3>
+          <p>Each business has isolated data (products, orders, messages, customers). RLS policies enforce data separation at the database level.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Desktop Notifications</h3>
+          <p>Browser push notifications for new orders and human handoff requests. Toggle on/off from the dashboard.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Dark/Light Theme</h3>
+          <p>Admin theme toggle stored in localStorage. Full dark mode support across all dashboard components.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>Responsive Design</h3>
+          <p>Full mobile support with bottom navigation bar, collapsible sidebar on desktop, and touch-optimized interactions.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-core">Feature</span>
+          <h3>WhatsApp Webhook Integration</h3>
+          <p>Receives inbound messages, media, documents, voice notes, locations, and interactive replies. Signature verification with META_APP_SECRET.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>Velo.ai — WhatsApp Business Automation Platform</p>
+    <p style="margin-top: 8px;">Built with Next.js 16, Supabase, Meta Cloud API, and Tailwind CSS</p>
+  </footer>
+</body>
+</html>

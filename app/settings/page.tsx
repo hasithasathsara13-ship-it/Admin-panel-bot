@@ -443,7 +443,15 @@ function BillingSettingsView({
             {loading
               ? "…"
               : billingNextDueAt
-                ? new Date(billingNextDueAt).toLocaleString()
+                ? (() => {
+                    const due = new Date(billingNextDueAt);
+                    const diff = due.getTime() - Date.now();
+                    const days = Math.ceil(diff / (24 * 60 * 60 * 1000));
+                    if (days < 0) return `${Math.abs(days)} day${Math.abs(days) !== 1 ? "s" : ""} overdue`;
+                    if (days === 0) return "Due today";
+                    if (days === 1) return "1 day remaining";
+                    return `${days} days remaining`;
+                  })()
                 : "— (set after first mark paid)"}
           </div>
           {subscriptionStatus === "past_due" && graceEnd ? (
