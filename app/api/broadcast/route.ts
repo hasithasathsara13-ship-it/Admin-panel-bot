@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   normalizeWhatsAppRecipientDigits,
   resolveWhatsappPhoneNumberId,
+  resolveMetaApiToken,
 } from "@/lib/whatsappMetaPhone";
 import { supabaseAdminForWhatsApp } from "@/lib/whatsappMetaPhone";
 
@@ -26,11 +27,12 @@ const DELAY_BETWEEN_MESSAGES_MS = 100;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { phone_numbers, template_name, language, custom_text, shop_id } = body as {
+    const { phone_numbers, template_name, language, custom_text, header_image_url, shop_id } = body as {
       phone_numbers?: string[];
       template_name?: string;
       language?: string;
       custom_text?: string;
+      header_image_url?: string;
       shop_id?: string;
     };
 
@@ -56,12 +58,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const token = process.env.META_API_TOKEN;
+    const token = await resolveMetaApiToken(shop_id);
     const phoneId = await resolveWhatsappPhoneNumberId(shop_id);
 
     if (!token || !phoneId) {
       return NextResponse.json(
-        { error: "Server misconfiguration: missing Meta credentials" },
+        { error: "Business WhatsApp credentials not configured. Set them in Velo Admin." },
         { status: 500 },
       );
     }
@@ -80,15 +82,32 @@ export async function POST(req: NextRequest) {
 
       if (template_name) {
         // Template message (works outside 24h window)
+        const templatePayload: Record<string, unknown> = {
+          name: template_name,
+          language: { code: language || "en" },
+        };
+
+        // Add image header component if provided
+        if (header_image_url) {
+          templatePayload.components = [
+            {
+              type: "header",
+              parameters: [
+                {
+                  type: "image",
+                  image: { link: header_image_url },
+                },
+              ],
+            },
+          ];
+        }
+
         payload = {
           messaging_product: "whatsapp",
           recipient_type: "individual",
           to: cleanPhone,
           type: "template",
-          template: {
-            name: template_name,
-            language: { code: language || "en" },
-          },
+          template: templatePayload,
         };
       } else {
         // Freeform text (only works within 24h window)

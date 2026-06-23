@@ -13,13 +13,15 @@ type Contact = {
 
 const TEMPLATE_OPTIONS = [
   { id: "hello_world", name: "Hello World", description: "Default Meta test template", language: "en_US" },
-  { id: "abandoned_cart", name: "Abandoned Cart Recovery", description: "Remind customer about items left in cart", language: "en" },
-  { id: "shipping_update", name: "Shipping Update", description: "Notify customer about order shipping status", language: "en" },
-  { id: "order_confirmation", name: "Order Confirmation", description: "Confirm a recent order placement", language: "en" },
-  { id: "payment_reminder", name: "Payment Reminder", description: "Remind customer about pending payment", language: "en" },
-  { id: "welcome_back", name: "Welcome Back", description: "Re-engage inactive customer", language: "en" },
-  { id: "feedback_request", name: "Feedback Request", description: "Ask customer for product/service feedback", language: "en" },
 ];
+
+type MetaTemplate = {
+  name: string;
+  status: string;
+  category: string;
+  language: string;
+  components: Array<{ type: string; text?: string }>;
+};
 
 type FilterMode = "all" | "recent_7d" | "recent_30d" | "inactive_30d" | "manual";
 
@@ -27,6 +29,7 @@ export default function BroadcastPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [metaTemplates, setMetaTemplates] = useState<MetaTemplate[]>([]);
 
   // Selection
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
@@ -76,6 +79,16 @@ export default function BroadcastPage() {
 
   useEffect(() => {
     void loadContacts();
+    // Load approved templates from Meta
+    void (async () => {
+      try {
+        const res = await fetch(`/api/templates${shopId ? `?shop_id=${encodeURIComponent(shopId)}` : ""}`);
+        const data = await res.json();
+        if (res.ok && data.templates) {
+          setMetaTemplates(data.templates.filter((t: MetaTemplate) => t.status.toUpperCase() === "APPROVED"));
+        }
+      } catch { /* ignore */ }
+    })();
   }, [loadContacts]);
 
   // Apply filters
@@ -257,14 +270,16 @@ export default function BroadcastPage() {
     setResult(null);
 
     try {
-      const template = TEMPLATE_OPTIONS.find((t) => t.id === selectedTemplate);
+      const metaT = metaTemplates.find((t) => t.name === selectedTemplate);
+      const fallbackT = TEMPLATE_OPTIONS.find((t) => t.id === selectedTemplate);
+      const templateLang = metaT?.language || fallbackT?.language || "en";
       const res = await fetch("/api/broadcast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           phone_numbers: recipients,
           template_name: messageType === "template" ? selectedTemplate : undefined,
-          language: messageType === "template" ? (template?.language || "en") : undefined,
+          language: messageType === "template" ? templateLang : undefined,
           custom_text: messageType === "text" ? customText.trim() : undefined,
           shop_id: shopId,
         }),
@@ -551,31 +566,39 @@ export default function BroadcastPage() {
           </p>
 
           {/* Message type toggle */}
-          <div className="mt-4 flex gap-2">
-            <button
-              type="button"
-              onClick={() => setMessageType("template")}
-              className={[
-                "rounded-lg px-4 py-2 text-xs font-medium transition-colors",
-                messageType === "template"
-                  ? "bg-[var(--color-accent)] text-white"
-                  : "bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]",
-              ].join(" ")}
+          <div className="mt-4 flex items-center gap-3">
+            <div className="inline-flex rounded-xl bg-[var(--color-surface-secondary)] p-1">
+              <button
+                type="button"
+                onClick={() => setMessageType("template")}
+                className={[
+                  "rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all",
+                  messageType === "template"
+                    ? "bg-white text-[var(--color-text-primary)] shadow-sm"
+                    : "text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]",
+                ].join(" ")}
+              >
+                Template
+              </button>
+              <button
+                type="button"
+                onClick={() => setMessageType("text")}
+                className={[
+                  "rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all",
+                  messageType === "text"
+                    ? "bg-white text-[var(--color-text-primary)] shadow-sm"
+                    : "text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]",
+                ].join(" ")}
+              >
+                Custom Text
+              </button>
+            </div>
+            <Link
+              href="/messages/templates"
+              className="text-xs font-medium text-[var(--color-accent)] hover:underline"
             >
-              Template Message
-            </button>
-            <button
-              type="button"
-              onClick={() => setMessageType("text")}
-              className={[
-                "rounded-lg px-4 py-2 text-xs font-medium transition-colors",
-                messageType === "text"
-                  ? "bg-[var(--color-accent)] text-white"
-                  : "bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]",
-              ].join(" ")}
-            >
-              Custom Text
-            </button>
+              Manage Templates →
+            </Link>
           </div>
 
           {messageType === "template" ? (
@@ -589,24 +612,33 @@ export default function BroadcastPage() {
                 className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] px-3 py-2.5 text-sm outline-none focus:border-[var(--color-accent)] appearance-none"
               >
                 <option value="">Choose a template...</option>
-                {TEMPLATE_OPTIONS.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
+                {metaTemplates.length > 0
+                  ? metaTemplates.map((t) => (
+                      <option key={`${t.name}-${t.language}`} value={t.name}>
+                        {t.name} ({t.language})
+                      </option>
+                    ))
+                  : TEMPLATE_OPTIONS.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
               </select>
               {selectedTemplate && (
                 <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] px-3 py-2.5">
                   <div className="text-xs font-medium text-[var(--color-text-primary)]">
-                    {TEMPLATE_OPTIONS.find((t) => t.id === selectedTemplate)?.name}
+                    {selectedTemplate}
                   </div>
                   <div className="mt-0.5 text-[11px] text-[var(--color-text-tertiary)]">
-                    {TEMPLATE_OPTIONS.find((t) => t.id === selectedTemplate)?.description}
+                    {metaTemplates.find((t) => t.name === selectedTemplate)?.components
+                      .filter((c) => c.type === "BODY")
+                      .map((c) => c.text)
+                      .join("") || "Approved template"}
                   </div>
                 </div>
               )}
               <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-                ⚡ Template messages can reach customers even after the 24h window. They must be pre-approved in Meta Business Manager.
+                  ⚡ Template messages can reach customers even after the 24h window.
               </div>
             </div>
           ) : (
@@ -642,7 +674,7 @@ export default function BroadcastPage() {
                   {recipients.length} recipient{recipients.length !== 1 ? "s" : ""}
                   {" · "}
                   {messageType === "template"
-                    ? (selectedTemplate ? TEMPLATE_OPTIONS.find((t) => t.id === selectedTemplate)?.name : "No template selected")
+                    ? (selectedTemplate || "No template selected")
                     : `${customText.length} characters`}
                 </div>
               </div>

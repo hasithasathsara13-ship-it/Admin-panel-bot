@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
         "business_name",
         "support_email",
         "whatsapp_number",
+        "business_category",
         "billing_plan",
         "billing_cycle",
         "subscription_status",
@@ -58,6 +59,9 @@ export async function GET(req: NextRequest) {
         "billing_last_marked_paid_at",
         "created_at",
         "brand_voice",
+        "meta_phone_id",
+        "meta_api_token",
+        "waba_id",
       ].join(", "),
     )
     .order("created_at", { ascending: false });
@@ -168,6 +172,21 @@ export async function POST(req: NextRequest) {
       );
     }
     insert.brand_voice = bv.length ? bv : DEFAULT_BRAND_VOICE;
+  }
+
+  if (body.meta_phone_id !== undefined) {
+    const v = typeof body.meta_phone_id === "string" ? body.meta_phone_id.trim() : "";
+    if (v) insert.meta_phone_id = v;
+  }
+
+  if (body.meta_api_token !== undefined) {
+    const v = typeof body.meta_api_token === "string" ? body.meta_api_token.trim() : "";
+    if (v) insert.meta_api_token = v;
+  }
+
+  if (body.waba_id !== undefined) {
+    const v = typeof body.waba_id === "string" ? body.waba_id.trim() : "";
+    if (v) insert.waba_id = v;
   }
 
   const { data, error } = await admin.from("businesses").insert(insert).select(SELECT_NEW).single();

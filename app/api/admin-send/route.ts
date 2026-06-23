@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   normalizeWhatsAppRecipientDigits,
   resolveWhatsappPhoneNumberId,
+  resolveMetaApiToken,
 } from "@/lib/whatsappMetaPhone";
 
 export async function POST(req: NextRequest) {
@@ -27,18 +28,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Env vars ──────────────────────────────────────────────────────────────
-    const token = process.env.META_API_TOKEN;
-    const phoneId = await resolveWhatsappPhoneNumberId(
-      typeof shop_id === "string" && shop_id.trim() ? shop_id.trim() : undefined,
-    );
+    // ── Resolve per-business Meta credentials from database ───────────────────
+    const shopIdClean = typeof shop_id === "string" && shop_id.trim() ? shop_id.trim() : undefined;
+    if (!shopIdClean) {
+      return NextResponse.json(
+        { error: "Missing shop_id — required to resolve business WhatsApp credentials" },
+        { status: 400 }
+      );
+    }
+    const token = await resolveMetaApiToken(shopIdClean);
+    const phoneId = await resolveWhatsappPhoneNumberId(shopIdClean);
 
     if (!token || !phoneId) {
       console.error(
-        "[admin-send] META_API_TOKEN missing or WhatsApp phone ID not resolved (set META_PHONE_NUMBER_ID / META_PHONE_ID, or shop meta_phone_id)",
+        `[admin-send] Credentials not resolved for shop_id=${shopIdClean}. token=${token ? "set" : "MISSING"}, phoneId=${phoneId || "MISSING"}. Ensure meta_api_token and meta_phone_id are set in the businesses table.`,
       );
       return NextResponse.json(
-        { error: "Server misconfiguration: missing Meta credentials" },
+        { error: `WhatsApp credentials not configured for this business. token=${token ? "✓" : "✗"} phoneId=${phoneId ? "✓" : "✗"}. Go to Velo Admin → Businesses → set Meta API Token and Phone Number ID.` },
         { status: 500 }
       );
     }

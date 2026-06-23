@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   normalizeWhatsAppRecipientDigits,
   resolveWhatsappPhoneNumberId,
+  resolveMetaApiToken,
 } from "@/lib/whatsappMetaPhone";
 
 /**
@@ -33,14 +34,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const token = process.env.META_API_TOKEN;
-    const phoneId = await resolveWhatsappPhoneNumberId(
-      typeof shop_id === "string" && shop_id.trim() ? shop_id.trim() : undefined,
-    );
+    const shopIdClean = typeof shop_id === "string" && shop_id.trim() ? shop_id.trim() : undefined;
+    if (!shopIdClean) {
+      return NextResponse.json(
+        { error: "Missing shop_id — required to resolve business WhatsApp credentials" },
+        { status: 400 },
+      );
+    }
+    const token = await resolveMetaApiToken(shopIdClean);
+    const phoneId = await resolveWhatsappPhoneNumberId(shopIdClean);
 
     if (!token || !phoneId) {
       return NextResponse.json(
-        { error: "Server misconfiguration: missing Meta credentials" },
+        { error: "Business WhatsApp credentials not configured. Set them in Velo Admin." },
         { status: 500 },
       );
     }

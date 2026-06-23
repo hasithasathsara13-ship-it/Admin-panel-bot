@@ -100,6 +100,16 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
+  if (body.waba_id !== undefined) {
+    const w = typeof body.waba_id === "string" ? body.waba_id.trim() : "";
+    patch.waba_id = w || null;
+  }
+
+  if (body.meta_api_token !== undefined) {
+    const t = typeof body.meta_api_token === "string" ? body.meta_api_token.trim() : "";
+    patch.meta_api_token = t || null;
+  }
+
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
   }

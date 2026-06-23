@@ -53,17 +53,9 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 
 const PAGE_SIZE = 50;
 
-/** Hardcoded template options for the 24h window workaround.
- *  The `id` must match the exact template name approved in your Meta Business Manager.
- *  Update these to match your approved templates. */
-const TEMPLATE_OPTIONS = [
-  { id: "hello_world", name: "Hello World", description: "Default Meta test template — sends 'Hello World' greeting", language: "en_US" },
-  { id: "abandoned_cart", name: "Abandoned Cart Recovery", description: "Remind customer about items left in cart", language: "en" },
-  { id: "shipping_update", name: "Shipping Update", description: "Notify customer about order shipping status", language: "en" },
-  { id: "order_confirmation", name: "Order Confirmation", description: "Confirm a recent order placement", language: "en" },
-  { id: "payment_reminder", name: "Payment Reminder", description: "Remind customer about pending payment", language: "en" },
-  { id: "welcome_back", name: "Welcome Back", description: "Re-engage inactive customer", language: "en" },
-  { id: "feedback_request", name: "Feedback Request", description: "Ask customer for product/service feedback", language: "en" },
+/** Fallback template if Meta API templates haven't loaded yet. */
+const FALLBACK_TEMPLATES = [
+  { id: "hello_world", name: "Hello World", description: "Default Meta test template", language: "en_US" },
 ];
 
 /** Extended when DB has reply/edit + WhatsApp id columns (see backend/supabase/messages_chat_enhancements.sql). */
@@ -747,33 +739,47 @@ function ChatBubble({
   );
 }
 
-function VoiceButton({ onSend, disabled }: { onSend: (blob: Blob) => void; disabled?: boolean }) {
+function useVoiceRecorder(onSend: (blob: Blob) => void) {
   const [recording, setRecording] = useState(false);
+  const [recorded, setRecorded] = useState<Blob | null>(null);
+  const [duration, setDuration] = useState(0);
+  const [levels, setLevels] = useState<number[]>([]);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  const cleanupAudioMeter = useCallback(() => {
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    if (audioCtxRef.current) {
+      void audioCtxRef.current.close().catch(() => {});
+      audioCtxRef.current = null;
+    }
+    analyserRef.current = null;
+  }, []);
 
   useEffect(() => {
     return () => {
       if (recorderRef.current && recorderRef.current.state !== "inactive") {
         recorderRef.current.stop();
       }
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (streamRef.current) {
+        for (const t of streamRef.current.getTracks()) t.stop();
+      }
+      cleanupAudioMeter();
       recorderRef.current = null;
       chunksRef.current = [];
     };
-  }, []);
+  }, [cleanupAudioMeter]);
 
-  const toggle = async () => {
-    if (recording) {
-      const rec = recorderRef.current;
-      if (rec && rec.state !== "inactive") {
-        if (typeof rec.requestData === "function") rec.requestData();
-        rec.stop();
-      }
-      return;
-    }
+  const startRecording = useCallback(async () => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
-
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    streamRef.current = stream;
     const preferredMimeTypes = [
       "audio/ogg;codecs=opus",
       "audio/ogg",
@@ -782,59 +788,135 @@ function VoiceButton({ onSend, disabled }: { onSend: (blob: Blob) => void; disab
       "audio/mp4;codecs=aac",
       "audio/aac",
     ];
-    let mimeType =
-      preferredMimeTypes.find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
-    if (!mimeType && MediaRecorder.isTypeSupported("audio/webm")) {
-      mimeType = "audio/webm";
-    }
+    let mimeType = preferredMimeTypes.find((m) => MediaRecorder.isTypeSupported(m)) ?? "";
+    if (!mimeType && MediaRecorder.isTypeSupported("audio/webm")) mimeType = "audio/webm";
     if (!mimeType) {
       for (const t of stream.getTracks()) t.stop();
       window.alert("This browser cannot record audio in a supported format.");
       return;
     }
 
+    // Set up audio level meter for the live waveform
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AudioCtx();
+      audioCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+        // Average amplitude → normalized 0..1
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        const avg = sum / dataArray.length / 255;
+        setLevels((prev) => {
+          const next = [...prev, Math.max(0.08, Math.min(1, avg * 2.5))];
+          return next.length > 40 ? next.slice(next.length - 40) : next;
+        });
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    } catch { /* meter optional */ }
+
     const recorder = new MediaRecorder(stream, { mimeType });
     chunksRef.current = [];
-
     recorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
     };
     recorder.onstop = () => {
-      try {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || mimeType });
-        if (blob.size > 0) onSend(blob);
-      } finally {
-        chunksRef.current = [];
-        for (const t of stream.getTracks()) t.stop();
-        setRecording(false);
-      }
+      const blob = new Blob(chunksRef.current, { type: recorder.mimeType || mimeType });
+      chunksRef.current = [];
+      for (const t of stream.getTracks()) t.stop();
+      cleanupAudioMeter();
+      if (blob.size > 0) setRecorded(blob);
+      setRecording(false);
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     };
-
     recorderRef.current = recorder;
     setRecording(true);
-    /** Timeslice emits chunks regularly; avoids empty blobs when stopping without data. */
+    setDuration(0);
+    setRecorded(null);
+    setLevels([]);
+    timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
     recorder.start(250);
-  };
+  }, [cleanupAudioMeter]);
 
-  return (
-    <button
-      type="button"
-      onClick={() => void toggle()}
-      disabled={disabled}
-      className={[
-        "p-2 rounded-xl transition-colors flex-shrink-0 mb-0.5",
-        disabled
-          ? "opacity-50 cursor-not-allowed text-[var(--color-text-tertiary)]"
-          : recording
-            ? "bg-[var(--color-danger-light)] text-[var(--color-danger)]"
-            : "hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]",
-      ].join(" ")}
-      aria-label={recording ? "Stop recording" : "Record voice note"}
-      title={recording ? "Stop recording" : "Record voice note"}
-    >
-      <Mic className="w-5 h-5" />
-    </button>
-  );
+  const stopRecording = useCallback(() => {
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") {
+      if (typeof rec.requestData === "function") rec.requestData();
+      rec.stop();
+    }
+  }, []);
+
+  const discardRecording = useCallback(() => {
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") {
+      recorderRef.current = null;
+      rec.onstop = () => {
+        chunksRef.current = [];
+        if (streamRef.current) for (const t of streamRef.current.getTracks()) t.stop();
+        cleanupAudioMeter();
+      };
+      rec.stop();
+    }
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    cleanupAudioMeter();
+    setRecorded(null);
+    setRecording(false);
+    setDuration(0);
+    setLevels([]);
+  }, [cleanupAudioMeter]);
+
+  const sendRecording = useCallback(() => {
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") {
+      rec.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/ogg" });
+        chunksRef.current = [];
+        if (streamRef.current) for (const t of streamRef.current.getTracks()) t.stop();
+        cleanupAudioMeter();
+        if (blob.size > 0) onSend(blob);
+        setRecording(false);
+        setRecorded(null);
+        setDuration(0);
+        setLevels([]);
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      };
+      if (typeof rec.requestData === "function") rec.requestData();
+      rec.stop();
+      return;
+    }
+    if (recorded) {
+      onSend(recorded);
+      setRecorded(null);
+      setDuration(0);
+      setLevels([]);
+    }
+  }, [recorded, onSend, cleanupAudioMeter]);
+
+  return {
+    recording,
+    recorded,
+    duration,
+    levels,
+    isActive: recording || recorded !== null,
+    startRecording,
+    stopRecording,
+    discardRecording,
+    sendRecording,
+  };
+}
+
+function formatVoiceTime(s: number): string {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -928,6 +1010,8 @@ export function ChatInterface() {
   const [editDraft, setEditDraft] = useState("");
   const [saveContactOpen, setSaveContactOpen] = useState(false);
   const [contactDraft, setContactDraft] = useState("");
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [newChatPhone, setNewChatPhone] = useState("");
   const [messageMenu, setMessageMenu] = useState<{
     id: string;
     anchor: MessageMenuAnchor;
@@ -951,6 +1035,8 @@ export function ChatInterface() {
   const templateSentAtRef = useRef<number>(0);
   // Reviews state
   const [sendingReviews, setSendingReviews] = useState(false);
+  // Dynamic templates from Meta
+  const [metaTemplates, setMetaTemplates] = useState<{ id: string; name: string; description: string; language: string }[]>([]);
 
   // shopId must be set after client mount: SSR/hydration runs the initializer with
   // no window, so a lazy localStorage read would stay null forever.
@@ -962,6 +1048,28 @@ export function ChatInterface() {
   useEffect(() => {
     if (!shopId) return;
     setSavedContacts(loadSavedContacts(shopId));
+  }, [shopId]);
+
+  // Fetch approved templates from Meta API
+  useEffect(() => {
+    if (!shopId) return;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/templates?shop_id=${encodeURIComponent(shopId)}`);
+        const data = await res.json();
+        if (res.ok && Array.isArray(data.templates)) {
+          const approved = (data.templates as Array<{ name: string; status: string; language: string; components: Array<{ type: string; text?: string }> }>)
+            .filter((t) => t.status.toUpperCase() === "APPROVED")
+            .map((t) => ({
+              id: t.name,
+              name: t.name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+              description: t.components.find((c) => c.type === "BODY")?.text || "Approved template",
+              language: t.language,
+            }));
+          if (approved.length > 0) setMetaTemplates(approved);
+        }
+      } catch { /* ignore — will use fallback */ }
+    })();
   }, [shopId]);
 
   // ── Bot active: fetch from customers table when conversation changes ───────
@@ -2033,6 +2141,9 @@ export function ChatInterface() {
     }
   }, [activePhone, shopId]);
 
+  // Voice recorder hook — drives the input-area waveform + the corner send button
+  const voice = useVoiceRecorder(sendVoiceNote);
+
   const handleDeleteMessage = useCallback(
     async (msg: Message) => {
       if (!supabase || !shopId) return;
@@ -2223,6 +2334,14 @@ export function ChatInterface() {
             </p>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setNewChatOpen(true)}
+              title="New Chat"
+              className="p-2 rounded-xl hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-colors"
+            >
+              <UserPlus className="w-4 h-4" />
+            </button>
             <button
               type="button"
               onClick={() => void fetchConversations()}
@@ -2539,11 +2658,14 @@ export function ChatInterface() {
                 </div>
               ) : null}
               <div className="flex min-w-0 items-end gap-1.5 px-3 py-2.5">
+              {!voice.isActive && (
               <button type="button" onClick={() => setEmojiOpen((v) => !v)} className={["p-2 rounded-xl hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0 mb-0.5", isPast24Hours ? "opacity-50 cursor-not-allowed" : ""].join(" ")} aria-label="Emoji" disabled={isPast24Hours}>
                 <Smile className="w-5 h-5" />
               </button>
+              )}
 
               {/* Template + button (always visible, primary action when 24h window closed) */}
+              {!voice.isActive && (
               <div ref={templateContainerRef} className="relative flex-shrink-0 mb-0.5">
                 <button
                   type="button"
@@ -2674,8 +2796,26 @@ export function ChatInterface() {
                   </div>
                 )}
               </div>
+              )}
 
-              <VoiceButton onSend={sendVoiceNote} disabled={isPast24Hours} />
+              {/* Mic button — only when not recording */}
+              {!voice.isActive && (
+                <button
+                  type="button"
+                  onClick={() => void voice.startRecording()}
+                  disabled={isPast24Hours}
+                  className={[
+                    "p-2 rounded-xl transition-colors flex-shrink-0 mb-0.5",
+                    isPast24Hours
+                      ? "opacity-50 cursor-not-allowed text-[var(--color-text-tertiary)]"
+                      : "hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]",
+                  ].join(" ")}
+                  aria-label="Record voice note"
+                  title="Record voice note"
+                >
+                  <Mic className="w-5 h-5" />
+                </button>
+              )}
               <input
                 ref={imageInputRef}
                 type="file"
@@ -2688,55 +2828,91 @@ export function ChatInterface() {
                 }}
               />
 
-              <div className={["relative flex min-w-0 flex-1 items-end overflow-visible rounded-2xl border transition-all", isPast24Hours ? "border-gray-300 bg-gray-200 opacity-50 cursor-not-allowed" : "border-[var(--color-border)] bg-[var(--color-surface-secondary)] focus-within:border-[var(--color-accent)] focus-within:shadow-[0_0_0_3px_var(--color-accent-glow)]"].join(" ")}>
-                {emojiOpen && !isPast24Hours ? (
-                  <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-20 grid grid-cols-5 gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-solid)] p-2 shadow-lg">
-                    {quickEmojis.map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onClick={() => insertEmoji(emoji)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-base hover:bg-[var(--color-surface-secondary)]"
-                      >
-                        {emoji}
-                      </button>
-                    ))}
+              {voice.isActive ? (
+                /* Voice recording/preview bar — replaces text field. WhatsApp style. */
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={voice.discardRecording}
+                    className="flex-shrink-0 p-2 rounded-full text-[#8696a0] hover:text-[#ef4444] transition-colors"
+                    aria-label="Delete recording"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                  <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full bg-[var(--color-surface-secondary)] px-4 py-3">
+                    <div className="w-2.5 h-2.5 flex-shrink-0 rounded-full bg-[#ef4444] animate-pulse" />
+                    <span className="text-sm font-mono text-[var(--color-text-primary)] flex-shrink-0 tabular-nums">
+                      {formatVoiceTime(voice.duration)}
+                    </span>
+                    <div className="flex flex-1 items-center gap-[2px] h-6 overflow-hidden justify-end">
+                      {(voice.levels.length > 0 ? voice.levels : [0.1]).map((lvl, i) => (
+                        <div
+                          key={i}
+                          className="w-[3px] rounded-full bg-[#25d366] flex-shrink-0"
+                          style={{ height: `${Math.max(3, lvl * 24)}px` }}
+                        />
+                      ))}
+                    </div>
                   </div>
-                ) : null}
-                <textarea
-                  ref={textareaRef}
-                  id="chat-input"
-                  value={inputText}
-                  onChange={handleInput}
-                  onKeyDown={handleKeyDown}
-                  placeholder={isPast24Hours ? "24h window closed. Use a template to reply." : "Type a message…"}
-                  rows={1}
-                  disabled={isPast24Hours}
-                  className={["max-h-32 w-full min-w-0 resize-none border-none bg-transparent px-4 py-3 text-[13.5px] leading-relaxed outline-none focus:border-transparent focus:shadow-none focus:ring-0", isPast24Hours ? "cursor-not-allowed placeholder:text-amber-600/70" : ""].join(" ")}
-                  style={{ boxShadow: "none" }}
-                />
-              </div>
+                </div>
+              ) : (
+                <div className={["relative flex min-w-0 flex-1 items-end overflow-visible rounded-2xl border transition-all", isPast24Hours ? "border-gray-300 bg-gray-200 opacity-50 cursor-not-allowed" : "border-[var(--color-border)] bg-[var(--color-surface-secondary)] focus-within:border-[var(--color-accent)] focus-within:shadow-[0_0_0_3px_var(--color-accent-glow)]"].join(" ")}>
+                  {emojiOpen && !isPast24Hours ? (
+                    <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-20 grid grid-cols-5 gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-solid)] p-2 shadow-lg">
+                      {quickEmojis.map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => insertEmoji(emoji)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-base hover:bg-[var(--color-surface-secondary)]"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  <textarea
+                    ref={textareaRef}
+                    id="chat-input"
+                    value={inputText}
+                    onChange={handleInput}
+                    onKeyDown={handleKeyDown}
+                    placeholder={isPast24Hours ? "24h window closed. Use a template to reply." : "Type a message…"}
+                    rows={1}
+                    disabled={isPast24Hours}
+                    className={["max-h-32 w-full min-w-0 resize-none border-none bg-transparent px-4 py-3 text-[13.5px] leading-relaxed outline-none focus:border-transparent focus:shadow-none focus:ring-0", isPast24Hours ? "cursor-not-allowed placeholder:text-amber-600/70" : ""].join(" ")}
+                    style={{ boxShadow: "none" }}
+                  />
+                </div>
+              )}
 
               <button
                 type="button"
                 id="chat-send-button"
-                onClick={sendMessage}
-                disabled={!inputText.trim() || !shopId || !activePhone || isPast24Hours}
+                onClick={voice.isActive ? voice.sendRecording : sendMessage}
+                disabled={
+                  !voice.isActive && (!inputText.trim() || !shopId || !activePhone || isPast24Hours)
+                }
                 title={
-                  isPast24Hours
-                    ? "24h window closed — use a template message"
-                    : !shopId
-                      ? "No shop selected — sign in again or pick a store"
-                      : !activePhone
-                        ? "Select a conversation"
-                        : undefined
+                  voice.isActive
+                    ? "Send voice note"
+                    : isPast24Hours
+                      ? "24h window closed — use a template message"
+                      : !shopId
+                        ? "No shop selected — sign in again or pick a store"
+                        : !activePhone
+                          ? "Select a conversation"
+                          : undefined
                 }
                 aria-label="Send message"
                 className={[
-                  "flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center mb-0.5 transition-all duration-200",
-                  inputText.trim() && shopId && activePhone && !isPast24Hours
-                    ? "bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-dark)] text-white shadow-[var(--shadow-glow-indigo)] hover:shadow-lg hover:scale-105"
-                    : "bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] cursor-not-allowed",
+                  "flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center mb-0.5 transition-all duration-200",
+                  voice.isActive
+                    ? "bg-[#25d366] text-white shadow-md hover:bg-[#20bd5a] hover:scale-105"
+                    : inputText.trim() && shopId && activePhone && !isPast24Hours
+                      ? "bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-dark)] text-white shadow-[var(--shadow-glow-indigo)] hover:shadow-lg hover:scale-105"
+                      : "bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] cursor-not-allowed",
                 ].join(" ")}
               >
                 <Send className="w-4 h-4 -translate-x-px translate-y-px" />
@@ -2777,7 +2953,7 @@ export function ChatInterface() {
                     className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] px-3 py-2.5 text-[14px] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-accent)] appearance-none"
                   >
                     <option value="">Choose a template…</option>
-                    {TEMPLATE_OPTIONS.map((t) => (
+                    {(metaTemplates.length > 0 ? metaTemplates : FALLBACK_TEMPLATES).map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}
                       </option>
@@ -2787,7 +2963,7 @@ export function ChatInterface() {
                   {selectedTemplate && (
                     <div className="mt-3 rounded-xl bg-[var(--color-surface-secondary)] border border-[var(--color-border)] px-3 py-2">
                       <p className="text-[12px] text-[var(--color-text-secondary)]">
-                        {TEMPLATE_OPTIONS.find((t) => t.id === selectedTemplate)?.description}
+                        {(metaTemplates.length > 0 ? metaTemplates : FALLBACK_TEMPLATES).find((t) => t.id === selectedTemplate)?.description}
                       </p>
                     </div>
                   )}
@@ -2809,7 +2985,7 @@ export function ChatInterface() {
                       onClick={async () => {
                         if (!selectedTemplate || !activePhone || !shopId) return;
                         setSendingTemplate(true);
-                        const template = TEMPLATE_OPTIONS.find((t) => t.id === selectedTemplate);
+                        const template = (metaTemplates.length > 0 ? metaTemplates : FALLBACK_TEMPLATES).find((t) => t.id === selectedTemplate);
                         try {
                           const res = await fetch("/api/admin-send-template", {
                             method: "POST",
@@ -2958,6 +3134,76 @@ export function ChatInterface() {
           </div>
         )}
       </div>
+
+      {/* New Chat Modal */}
+      {newChatOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--color-border-card)] bg-[var(--color-surface-solid)] p-5 shadow-2xl">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-[16px] font-semibold text-[var(--color-text-primary)]">
+                New Conversation
+              </h3>
+              <button
+                type="button"
+                onClick={() => { setNewChatOpen(false); setNewChatPhone(""); }}
+                className="p-1.5 rounded-full hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)]"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-[12px] text-[var(--color-text-tertiary)] mb-4">
+              Enter a phone number with country code to start a new conversation. You&apos;ll need to send a template message first if they haven&apos;t messaged you before.
+            </p>
+            <label className="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1.5">
+              Phone Number
+            </label>
+            <input
+              type="tel"
+              value={newChatPhone}
+              onChange={(e) => setNewChatPhone(e.target.value)}
+              placeholder="e.g. 94771234567"
+              className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] px-3 py-2.5 text-[14px] font-mono outline-none focus:border-[var(--color-accent)]"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const phone = newChatPhone.replace(/[^\d]/g, "");
+                  if (phone.length >= 7) {
+                    setNewChatOpen(false);
+                    setNewChatPhone("");
+                    openConversation(phone);
+                  }
+                }
+              }}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setNewChatOpen(false); setNewChatPhone(""); }}
+                className="rounded-xl px-4 py-2 text-[13px] font-medium text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const phone = newChatPhone.replace(/[^\d]/g, "");
+                  if (phone.length >= 7) {
+                    setNewChatOpen(false);
+                    setNewChatPhone("");
+                    openConversation(phone);
+                  }
+                }}
+                disabled={newChatPhone.replace(/[^\d]/g, "").length < 7}
+                className="rounded-xl bg-[var(--color-accent)] px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
+              >
+                Start Chat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

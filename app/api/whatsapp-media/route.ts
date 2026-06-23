@@ -3,6 +3,7 @@ import {
   isAllowlistedMetaMediaHost,
   normalizeWhatsAppAudioContentType,
 } from "@/lib/whatsappMediaContent";
+import { resolveMetaApiToken } from "@/lib/whatsappMetaPhone";
 
 /**
  * Proxies WhatsApp Cloud API media for the dashboard.
@@ -57,15 +58,16 @@ function decodeForwardUrl(raw: string): URL | null {
  * GET /api/whatsapp-media?forward_url=…&info=1 → { mime_type } via GET headers
  */
 export async function GET(req: NextRequest) {
-  const token = process.env.META_API_TOKEN;
+  const url = req.nextUrl;
+  const shopId = url.searchParams.get("shop_id") || undefined;
+  const token = await resolveMetaApiToken(shopId);
   if (!token) {
     return NextResponse.json(
-      { error: "META_API_TOKEN not configured" },
+      { error: "Business WhatsApp credentials not configured" },
       { status: 500 },
     );
   }
 
-  const url = req.nextUrl;
   const mediaId = url.searchParams.get("media_id");
   const forwardRaw = url.searchParams.get("forward_url");
   const infoOnly = url.searchParams.get("info") === "1";

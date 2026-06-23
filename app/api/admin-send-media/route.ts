@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   normalizeWhatsAppRecipientDigits,
   resolveWhatsappPhoneNumberId,
+  resolveMetaApiToken,
 } from "@/lib/whatsappMetaPhone";
 import { encodeAudioBufferForWhatsAppM4a } from "@/lib/convertWebmForWhatsApp";
 
@@ -86,14 +87,6 @@ function normalizeUploadMime(
 
 export async function POST(req: NextRequest) {
   try {
-    const token = process.env.META_API_TOKEN;
-    if (!token) {
-      return NextResponse.json(
-        { error: "Server misconfiguration: missing Meta credentials" },
-        { status: 500 },
-      );
-    }
-
     const form = await req.formData();
     const phoneNumber = form.get("phone_number");
     const shopId = form.get("shop_id");
@@ -164,12 +157,18 @@ export async function POST(req: NextRequest) {
       normalizedType = nt;
     }
 
-    const phoneId = await resolveWhatsappPhoneNumberId(
-      typeof shopId === "string" && shopId.trim() ? shopId.trim() : undefined,
-    );
-    if (!phoneId) {
+    const shopIdClean = typeof shopId === "string" && shopId.trim() ? shopId.trim() : undefined;
+    if (!shopIdClean) {
       return NextResponse.json(
-        { error: "Server misconfiguration: WhatsApp phone not configured" },
+        { error: "Missing shop_id — required to resolve business WhatsApp credentials" },
+        { status: 400 },
+      );
+    }
+    const token = await resolveMetaApiToken(shopIdClean);
+    const phoneId = await resolveWhatsappPhoneNumberId(shopIdClean);
+    if (!token || !phoneId) {
+      return NextResponse.json(
+        { error: "Business WhatsApp credentials not configured. Set them in Velo Admin." },
         { status: 500 },
       );
     }

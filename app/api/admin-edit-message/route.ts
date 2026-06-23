@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   normalizeWhatsAppRecipientDigits,
   resolveWhatsappPhoneNumberId,
+  resolveMetaApiToken,
 } from "@/lib/whatsappMetaPhone";
 
 /**
@@ -43,17 +44,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const token = process.env.META_API_TOKEN;
-    const phoneId = await resolveWhatsappPhoneNumberId(
-      typeof shop_id === "string" && shop_id.trim() ? shop_id.trim() : undefined,
-    );
+    const shopIdClean = typeof shop_id === "string" && shop_id.trim() ? shop_id.trim() : undefined;
+    const token = await resolveMetaApiToken(shopIdClean);
+    const phoneId = await resolveWhatsappPhoneNumberId(shopIdClean);
 
     if (!token || !phoneId) {
       console.error(
-        "[admin-edit-message] META_API_TOKEN missing or WhatsApp phone ID not resolved",
+        "[admin-edit-message] Meta credentials not resolved for business",
       );
       return NextResponse.json(
-        { error: "Server misconfiguration: missing Meta credentials" },
+        { error: "Business WhatsApp credentials not configured." },
         { status: 500 },
       );
     }

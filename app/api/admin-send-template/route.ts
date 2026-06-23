@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   normalizeWhatsAppRecipientDigits,
   resolveWhatsappPhoneNumberId,
+  resolveMetaApiToken,
 } from "@/lib/whatsappMetaPhone";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { phone_number, template_name, language, shop_id } = body as {
+    const { phone_number, template_name, language, header_image_url, shop_id } = body as {
       phone_number?: string;
       template_name?: string;
       language?: string;
+      header_image_url?: string;
       shop_id?: string;
     };
 
@@ -28,18 +30,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Env vars ──────────────────────────────────────────────────────────────
-    const token = process.env.META_API_TOKEN;
-    const phoneId = await resolveWhatsappPhoneNumberId(
-      typeof shop_id === "string" && shop_id.trim() ? shop_id.trim() : undefined,
-    );
+    // ── Resolve per-business credentials from database ─────────────────────────
+    const shopIdClean = typeof shop_id === "string" && shop_id.trim() ? shop_id.trim() : undefined;
+    if (!shopIdClean) {
+      return NextResponse.json(
+        { error: "Missing shop_id — required to resolve business WhatsApp credentials" },
+        { status: 400 }
+      );
+    }
+    const token = await resolveMetaApiToken(shopIdClean);
+    const phoneId = await resolveWhatsappPhoneNumberId(shopIdClean);
 
     if (!token || !phoneId) {
       console.error(
-        "[admin-send-template] META_API_TOKEN missing or WhatsApp phone ID not resolved",
+        "[admin-send-template] Meta credentials not found for business",
       );
       return NextResponse.json(
-        { error: "Server misconfiguration: missing Meta credentials" },
+        { error: "Business WhatsApp credentials not configured. Set them in Velo Admin." },
         { status: 500 }
       );
     }
@@ -60,17 +67,33 @@ export async function POST(req: NextRequest) {
     // ── Build Meta Cloud API template request ─────────────────────────────────
     const metaUrl = `https://graph.facebook.com/v18.0/${phoneId}/messages`;
 
+    const templatePayload: Record<string, unknown> = {
+      name: template_name,
+      language: {
+        code: language || "en",
+      },
+    };
+
+    if (header_image_url) {
+      templatePayload.components = [
+        {
+          type: "header",
+          parameters: [
+            {
+              type: "image",
+              image: { link: header_image_url },
+            },
+          ],
+        },
+      ];
+    }
+
     const payload = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
       to: cleanPhone,
       type: "template",
-      template: {
-        name: template_name,
-        language: {
-          code: language || "en",
-        },
-      },
+      template: templatePayload,
     };
 
     // ── Send ──────────────────────────────────────────────────────────────────

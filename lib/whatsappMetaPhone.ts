@@ -5,6 +5,8 @@ export type BusinessRow = {
   business_name: string | null;
   whatsapp_number: string | null;
   meta_phone_id?: string | null;
+  meta_api_token?: string | null;
+  waba_id?: string | null;
 };
 
 /** Match inbound webhook normalization — Meta `to` must be digits only (country code, no +). */
@@ -114,4 +116,34 @@ export async function resolveWhatsappPhoneNumberId(
     if (id) return id;
   }
   return whatsappPhoneNumberIdFromBusiness(null);
+}
+
+/**
+ * Resolve Meta API token for a business from the database.
+ * Multi-tenant: each business has its own token. Falls back to env only if DB has none.
+ */
+export async function resolveMetaApiToken(
+  shopId: string | null | undefined,
+): Promise<string | null> {
+  if (shopId && supabaseAdminForWhatsApp) {
+    const business = await resolveBusinessForShop(shopId);
+    const token = typeof business?.meta_api_token === "string" ? business.meta_api_token.trim() : "";
+    if (token) return token;
+  }
+  // Fallback to env for backward compatibility / default shop
+  return process.env.META_API_TOKEN?.trim() || null;
+}
+
+/**
+ * Resolve WABA ID for a business from the database.
+ */
+export async function resolveWabaId(
+  shopId: string | null | undefined,
+): Promise<string | null> {
+  if (shopId && supabaseAdminForWhatsApp) {
+    const business = await resolveBusinessForShop(shopId);
+    const waba = typeof business?.waba_id === "string" ? business.waba_id.trim() : "";
+    if (waba) return waba;
+  }
+  return process.env.WABA_ID?.trim() || null;
 }

@@ -3,6 +3,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Download, File, FileText, ImageOff, Loader2, Mic } from "lucide-react";
 import type { WaMediaKindHint } from "@/lib/whatsappMediaContent";
+import { getActiveShopId } from "@/lib/activeShopId";
+
+function mediaSrc(mediaId: string, extra = ""): string {
+  const shopId = typeof window !== "undefined" ? getActiveShopId() : null;
+  const shopParam = shopId ? `&shop_id=${encodeURIComponent(shopId)}` : "";
+  return `/api/whatsapp-media?media_id=${encodeURIComponent(mediaId)}${shopParam}${extra}`;
+}
 
 export type WaMediaKindHintExtended = WaMediaKindHint | "document" | "video";
 
@@ -224,7 +231,7 @@ export function WaMediaAttachment({
   hint?: WaMediaKindHint;
   isAI: boolean;
 }) {
-  const src = `/api/whatsapp-media?media_id=${encodeURIComponent(mediaId)}`;
+  const src = mediaSrc(mediaId);
   const [mime, setMime] = useState<string | null>(null);
   const [imgErr, setImgErr] = useState(false);
   const [metaErr, setMetaErr] = useState(false);
@@ -234,9 +241,7 @@ export function WaMediaAttachment({
     let cancelled = false;
     void (async () => {
       try {
-        const r = await fetch(
-          `/api/whatsapp-media?media_id=${encodeURIComponent(mediaId)}&info=1`,
-        );
+        const r = await fetch(mediaSrc(mediaId, "&info=1"));
         if (!r.ok) {
           if (!cancelled) {
             setMetaErr(true);
@@ -390,6 +395,8 @@ export function WaForwardAttachment({
   forwardUrl: string;
   isAI: boolean;
 }) {
-  const src = `/api/whatsapp-media?forward_url=${encodeURIComponent(forwardUrl)}`;
+  const shopId = typeof window !== "undefined" ? getActiveShopId() : null;
+  const shopParam = shopId ? `&shop_id=${encodeURIComponent(shopId)}` : "";
+  const src = `/api/whatsapp-media?forward_url=${encodeURIComponent(forwardUrl)}${shopParam}`;
   return <TryImageThenAudio src={src} isAI={isAI} />;
 }

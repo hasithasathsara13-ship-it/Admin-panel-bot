@@ -24,6 +24,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isMessagesRoute = pathname === "/messages" || pathname.startsWith("/messages/");
+  const isChatRoute = pathname === "/messages"; // Only the chat page gets overflow-hidden
 
   const [sessionLoading, setSessionLoading] = useState(true);
   const [session, setSession] = useState<unknown>(null);
@@ -543,7 +544,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <main
             className={[
               "relative flex min-h-0 flex-1 flex-col animate-fade-in",
-              isMessagesRoute ? "overflow-hidden p-0 lg:p-0" : "overflow-y-auto px-4 py-8 lg:px-8",
+              isChatRoute ? "overflow-hidden p-0 lg:p-0" : "overflow-y-auto px-4 py-8 lg:px-8",
               billingOverlay?.blockMain ? "pointer-events-none select-none opacity-[0.38]" : "",
             ].join(" ")}
           >

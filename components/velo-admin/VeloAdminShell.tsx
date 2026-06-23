@@ -5,8 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 const nav = [
-  { href: "/velo-admin/analytics", label: "Analytics" },
-  { href: "/velo-admin/businesses", label: "Business manage" },
+  { href: "/velo-admin/analytics", label: "Dashboard", icon: "📊" },
+  { href: "/velo-admin/businesses", label: "Businesses", icon: "🏢" },
+  { href: "/velo-admin/add-business", label: "Add Business", icon: "➕" },
+  { href: "/velo-admin/billing", label: "Billing", icon: "💳" },
 ] as const;
 
 export function VeloAdminShell({ children }: { children: React.ReactNode }) {
@@ -19,52 +21,62 @@ export function VeloAdminShell({ children }: { children: React.ReactNode }) {
     router.replace("/login");
   }
 
+  function isActive(href: string) {
+    if (href === "/velo-admin/businesses") {
+      return pathname === href || pathname.startsWith("/velo-admin/businesses/");
+    }
+    return pathname === href;
+  }
+
   return (
-    <div className="flex min-h-dvh bg-[#070a12] text-slate-100">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-white/10 bg-[#0c101c]/95 backdrop-blur-xl lg:flex">
+    <div className="flex min-h-dvh bg-gradient-to-br from-[#070a12] via-[#0a0e1a] to-[#0c0a1e] text-slate-100">
+      {/* Desktop sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-white/10 bg-[#0b0f1c]/95 backdrop-blur-xl lg:flex">
         <div className="border-b border-white/10 px-5 py-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold shadow-lg shadow-indigo-500/25">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 text-base font-bold shadow-lg shadow-indigo-500/30">
               V
             </div>
             <div>
-              <div className="text-sm font-semibold tracking-tight">Velo.ai</div>
-              <div className="text-[11px] font-medium uppercase tracking-wider text-white/75">
-                Platform
+              <div className="text-sm font-bold tracking-tight">Velo.ai</div>
+              <div className="text-[10px] font-medium uppercase tracking-[0.15em] text-indigo-300/70">
+                Platform Admin
               </div>
             </div>
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
           {nav.map((item) => {
-            const active = pathname === item.href;
+            const active = isActive(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={[
-                  "rounded-xl px-3 py-2.5 text-sm font-medium transition",
+                  "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                   active
-                    ? "bg-white/10 text-white shadow-inner shadow-white/5 ring-1 ring-inset ring-white/10"
-                    : "text-white/80 hover:bg-white/5 hover:text-white",
+                    ? "bg-gradient-to-r from-indigo-500/20 to-transparent text-white ring-1 ring-inset ring-indigo-500/30"
+                    : "text-white/60 hover:bg-white/5 hover:text-white",
                 ].join(" ")}
               >
+                <span className={["text-base transition-transform duration-200", active ? "scale-110" : "group-hover:scale-110"].join(" ")}>{item.icon}</span>
                 {item.label}
+                {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400" />}
               </Link>
             );
           })}
         </nav>
-        <div className="border-t border-white/10 p-3">
+        <div className="border-t border-white/10 p-3 space-y-1">
           <Link
             href="/dashboard"
-            className="mb-2 block rounded-xl px-3 py-2 text-xs font-medium text-white/75 hover:bg-white/5 hover:text-white"
+            className="block rounded-xl px-3 py-2 text-xs font-medium text-white/50 hover:bg-white/5 hover:text-white transition-colors"
           >
-            Merchant dashboard →
+            ← Merchant dashboard
           </Link>
           <button
             type="button"
             onClick={() => void logout()}
-            className="w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-rose-300/90 hover:bg-rose-500/10"
+            className="w-full rounded-xl px-3 py-2 text-left text-xs font-medium text-rose-300/70 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"
           >
             Log out
           </button>
@@ -72,26 +84,27 @@ export function VeloAdminShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
+        {/* Mobile header */}
         <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/10 bg-[#070a12]/90 px-4 py-3 backdrop-blur-md lg:hidden">
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold">
               V
             </div>
-            <span className="text-sm font-semibold">Velo</span>
+            <span className="text-sm font-semibold">Velo Admin</span>
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1 overflow-x-auto">
             {nav.map((item) => {
-              const active = pathname === item.href;
+              const active = isActive(item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   className={[
-                    "rounded-lg px-2.5 py-1.5 text-xs font-medium",
-                    active ? "bg-white/10 text-white" : "text-white/80 hover:text-white",
+                    "rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap",
+                    active ? "bg-white/10 text-white" : "text-white/70 hover:text-white",
                   ].join(" ")}
                 >
-                  {item.label === "Business manage" ? "Business" : "Analytics"}
+                  {item.label}
                 </Link>
               );
             })}
