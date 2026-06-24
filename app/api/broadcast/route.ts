@@ -156,15 +156,19 @@ export async function POST(req: NextRequest) {
     // Log broadcast to DB if admin client is available
     if (supabaseAdminForWhatsApp) {
       const sentCount = results.filter((r) => r.success).length;
-      await supabaseAdminForWhatsApp.from("broadcast_logs").insert({
-        shop_id,
-        template_name: template_name || null,
-        custom_text: custom_text || null,
-        recipients_count: phone_numbers.length,
-        sent_count: sentCount,
-        failed_count: results.filter((r) => !r.success).length,
-        created_at: new Date().toISOString(),
-      }).then(() => {/* ignore errors */}).catch(() => {/* ignore */});
+      try {
+        await supabaseAdminForWhatsApp.from("broadcast_logs").insert({
+          shop_id,
+          template_name: template_name || null,
+          custom_text: custom_text || null,
+          recipients_count: phone_numbers.length,
+          sent_count: sentCount,
+          failed_count: results.filter((r) => !r.success).length,
+          created_at: new Date().toISOString(),
+        });
+      } catch {
+        /* logging is best-effort */
+      }
     }
 
     const sent = results.filter((r) => r.success).length;

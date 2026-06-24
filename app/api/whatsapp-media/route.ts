@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
       meta.mime_type ||
       "application/octet-stream";
     const ct = rawCt.toLowerCase().includes("audio")
-      ? normalizeWhatsAppAudioContentType(rawCt, meta.mime_type)
+      ? normalizeWhatsAppAudioContentType(rawCt)
       : rawCt;
     return new NextResponse(bin.body, {
       status: 200,

@@ -14,6 +14,10 @@ type BusinessDetail = {
   meta_phone_id: string | null;
   meta_api_token: string | null;
   waba_id: string | null;
+  bot_mode: string | null;
+  bot_enabled: boolean | null;
+  enable_ordering: boolean | null;
+  enable_reviews: boolean | null;
   billing_plan: string | null;
   billing_cycle: string | null;
   subscription_status: string | null;
@@ -59,6 +63,11 @@ export default function BusinessDetailPage() {
   const [plan, setPlan] = useState("Starter");
   const [cycle, setCycle] = useState("Monthly");
   const [status, setStatus] = useState("active");
+  // Bot control
+  const [botMode, setBotMode] = useState("full_ecommerce");
+  const [botEnabled, setBotEnabled] = useState(true);
+  const [enableOrdering, setEnableOrdering] = useState(true);
+  const [enableReviews, setEnableReviews] = useState(false);
 
   const loadBusiness = useCallback(async () => {
     setLoading(true);
@@ -87,6 +96,10 @@ export default function BusinessDetailPage() {
     setPlan(found.billing_plan || "Starter");
     setCycle(found.billing_cycle || "Monthly");
     setStatus(found.subscription_status || "active");
+    setBotMode(found.bot_mode || "full_ecommerce");
+    setBotEnabled(found.bot_enabled !== false);
+    setEnableOrdering(found.enable_ordering !== false);
+    setEnableReviews(found.enable_reviews === true);
     setLoading(false);
   }, [id, router]);
 
@@ -108,6 +121,11 @@ export default function BusinessDetailPage() {
         brand_voice: brandVoice || null,
         waba_id: wabaId || null,
         meta_api_token: metaApiToken || null,
+        meta_phone_id: metaPhoneId || null,
+        bot_mode: botMode,
+        bot_enabled: botEnabled,
+        enable_ordering: enableOrdering,
+        enable_reviews: enableReviews,
       }),
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -247,6 +265,89 @@ export default function BusinessDetailPage() {
             <span className="text-[11px] font-medium text-white/60">Category</span>
             <input value={category} onChange={(e) => setCategory(e.target.value)} className="velo-admin-input w-full rounded-lg border border-white/10 px-3 py-2 text-sm outline-none focus:border-indigo-500/50" />
           </label>
+        </div>
+      </section>
+
+      {/* Bot Control */}
+      <section className="rounded-2xl border border-white/10 bg-[#0c101c]/80 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-sm font-semibold text-white">🤖 AI Bot Control</h2>
+            <p className="text-[11px] text-white/50 mt-0.5">Control how the WhatsApp AI behaves for this business.</p>
+          </div>
+          {/* Master toggle */}
+          <button
+            type="button"
+            onClick={() => setBotEnabled((v) => !v)}
+            className={[
+              "relative inline-flex h-7 w-12 items-center rounded-full transition-colors",
+              botEnabled ? "bg-emerald-500" : "bg-white/20",
+            ].join(" ")}
+            aria-label="Toggle bot"
+          >
+            <span className={["inline-block h-5 w-5 transform rounded-full bg-white transition-transform", botEnabled ? "translate-x-6" : "translate-x-1"].join(" ")} />
+          </button>
+        </div>
+
+        {!botEnabled && (
+          <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            Bot is OFF — the AI will not reply to any customer messages for this business.
+          </div>
+        )}
+
+        {/* Bot mode selection */}
+        <div className="space-y-3">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-white/60">Bot Mode</span>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              { key: "full_ecommerce", icon: "🛒", title: "Full E-Commerce", desc: "Orders, sizing, checkout, inventory & order tags active." },
+              { key: "reviews_only", icon: "⭐", title: "Reviews Only", desc: "Uses customer reviews as social proof. Directs orders out of chat." },
+              { key: "info_only", icon: "ℹ️", title: "Info Only", desc: "Strictly informational. No ordering or checkout." },
+            ].map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => {
+                  setBotMode(m.key);
+                  if (m.key === "full_ecommerce") setEnableOrdering(true);
+                  if (m.key === "info_only") setEnableOrdering(false);
+                  if (m.key === "reviews_only") { setEnableOrdering(false); setEnableReviews(true); }
+                }}
+                className={[
+                  "rounded-xl border p-3 text-left transition-all",
+                  botMode === m.key
+                    ? "border-indigo-500/50 bg-indigo-500/15 ring-1 ring-inset ring-indigo-500/30"
+                    : "border-white/10 bg-white/[0.02] hover:border-white/20",
+                ].join(" ")}
+              >
+                <div className="text-lg">{m.icon}</div>
+                <div className="mt-1 text-sm font-semibold text-white">{m.title}</div>
+                <div className="mt-0.5 text-[11px] text-white/50 leading-snug">{m.desc}</div>
+              </button>
+            ))}
+          </div>
+
+          {/* Feature toggles */}
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <label className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5">
+              <span className="text-xs text-white/80">Enable Ordering / Checkout</span>
+              <input
+                type="checkbox"
+                checked={enableOrdering}
+                onChange={(e) => setEnableOrdering(e.target.checked)}
+                className="h-4 w-4 rounded accent-indigo-500"
+              />
+            </label>
+            <label className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5">
+              <span className="text-xs text-white/80">Enable Reviews (social proof)</span>
+              <input
+                type="checkbox"
+                checked={enableReviews}
+                onChange={(e) => setEnableReviews(e.target.checked)}
+                className="h-4 w-4 rounded accent-indigo-500"
+              />
+            </label>
+          </div>
         </div>
       </section>
 

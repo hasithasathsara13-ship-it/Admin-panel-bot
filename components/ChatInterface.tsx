@@ -1292,7 +1292,10 @@ export function ChatInterface() {
         if (opts?.silent) {
           const open = activePhoneRef.current;
           const prevByPhone = new Map(prev.map((c) => [c.phone, c]));
-          return nextList.map((c) => {
+          // Preserve manually-added conversations (new chats with no messages yet)
+          const nextPhones = new Set(nextList.map((c) => c.phone));
+          const preserved = prev.filter((c) => !nextPhones.has(c.phone) && c.phone === open);
+          return [...nextList.map((c) => {
             const old = prevByPhone.get(c.phone);
             let unread = old?.unread ?? 0;
             if (
@@ -1303,7 +1306,13 @@ export function ChatInterface() {
               unread = c.phone === open ? 0 : unread + 1;
             }
             return { ...c, unread };
-          });
+          }), ...preserved];
+        }
+        // Preserve the currently active phone if it has no messages yet
+        const open = activePhoneRef.current;
+        if (open && !nextList.some((c) => c.phone === open)) {
+          const existing = prev.find((c) => c.phone === open);
+          if (existing) return [existing, ...nextList];
         }
         return nextList;
       });
@@ -1704,9 +1713,14 @@ export function ChatInterface() {
     if (shopId) {
       setContactDraft(loadSavedContacts(shopId)[phone] ?? "");
     }
-    setConversations((prev) =>
-      prev.map((c) => (c.phone === phone ? { ...c, unread: 0 } : c))
-    );
+    // Add to conversation list if not already there
+    setConversations((prev) => {
+      const exists = prev.some((c) => c.phone === phone);
+      if (exists) {
+        return prev.map((c) => (c.phone === phone ? { ...c, unread: 0 } : c));
+      }
+      return [{ phone, lastMessage: "", isoTimestamp: new Date().toISOString(), unread: 0 }, ...prev];
+    });
     fetchInitialMessages(phone);
     fetchBotActive(phone);
     clearBotAutoEnableTimer();

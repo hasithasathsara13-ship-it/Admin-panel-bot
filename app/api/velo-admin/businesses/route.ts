@@ -62,6 +62,10 @@ export async function GET(req: NextRequest) {
         "meta_phone_id",
         "meta_api_token",
         "waba_id",
+        "bot_mode",
+        "bot_enabled",
+        "enable_ordering",
+        "enable_reviews",
       ].join(", "),
     )
     .order("created_at", { ascending: false });
@@ -70,7 +74,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const businesses = (data ?? []) as Array<Record<string, unknown>>;
+  const businesses = (data ?? []) as unknown as Array<Record<string, unknown>>;
   const shopIds = businesses
     .map((b) => (typeof b.id === "string" ? b.id : null))
     .filter((id): id is string => Boolean(id));
@@ -134,6 +138,9 @@ export async function POST(req: NextRequest) {
     whatsapp_number?: string | null;
     business_category?: string | null;
     brand_voice?: string | null;
+    meta_phone_id?: string | null;
+    meta_api_token?: string | null;
+    waba_id?: string | null;
   };
   try {
     body = (await req.json()) as typeof body;

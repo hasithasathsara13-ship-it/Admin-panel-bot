@@ -34,6 +34,13 @@ export async function PATCH(req: NextRequest) {
     subscription_status?: string;
     billing_next_due_at?: string | null;
     brand_voice?: string | null;
+    waba_id?: string | null;
+    meta_api_token?: string | null;
+    meta_phone_id?: string | null;
+    bot_mode?: string;
+    bot_enabled?: boolean;
+    enable_ordering?: boolean;
+    enable_reviews?: boolean;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -108,6 +115,31 @@ export async function PATCH(req: NextRequest) {
   if (body.meta_api_token !== undefined) {
     const t = typeof body.meta_api_token === "string" ? body.meta_api_token.trim() : "";
     patch.meta_api_token = t || null;
+  }
+
+  if (body.meta_phone_id !== undefined) {
+    const p = typeof body.meta_phone_id === "string" ? body.meta_phone_id.trim() : "";
+    patch.meta_phone_id = p || null;
+  }
+
+  if (body.bot_mode !== undefined) {
+    const m = String(body.bot_mode);
+    if (!["full_ecommerce", "reviews_only", "info_only"].includes(m)) {
+      return NextResponse.json({ error: "Invalid bot_mode" }, { status: 400 });
+    }
+    patch.bot_mode = m;
+  }
+
+  if (body.bot_enabled !== undefined) {
+    patch.bot_enabled = Boolean(body.bot_enabled);
+  }
+
+  if (body.enable_ordering !== undefined) {
+    patch.enable_ordering = Boolean(body.enable_ordering);
+  }
+
+  if (body.enable_reviews !== undefined) {
+    patch.enable_reviews = Boolean(body.enable_reviews);
   }
 
   if (Object.keys(patch).length === 0) {

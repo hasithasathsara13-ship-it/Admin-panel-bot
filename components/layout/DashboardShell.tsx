@@ -88,6 +88,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
     async function loadSession() {
       try {
+        if (!supabase) { setSession(null); return; }
         const res = await supabase.auth.getSession();
         if (!mounted) return;
         setSession(res?.data?.session ?? null);
@@ -198,7 +199,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
     const sb = supabase;
 
-    const handoffPhrase = "I will transfer you to a representative, hold on.";
+    const handoffPhrase = "activate";
     const dedupe = new Set<string>();
     const remember = (key: string) => {
       if (dedupe.has(key)) return false;

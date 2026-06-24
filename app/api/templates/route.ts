@@ -126,16 +126,13 @@ export async function POST(req: NextRequest) {
     // Build components array
     const components: Array<Record<string, unknown>> = [];
 
-    const hType = (header_type || "TEXT").toUpperCase();
+    const hType = (header_type || "NONE").toUpperCase();
     if (hType === "IMAGE" || hType === "VIDEO" || hType === "DOCUMENT") {
       components.push({
         type: "HEADER",
         format: hType,
-        example: hType === "IMAGE"
-          ? { header_handle: ["https://placehold.co/600x400/png"] }
-          : undefined,
       });
-    } else if (header_text?.trim()) {
+    } else if (hType === "TEXT" && header_text?.trim()) {
       components.push({
         type: "HEADER",
         format: "TEXT",
@@ -146,6 +143,15 @@ export async function POST(req: NextRequest) {
     components.push({
       type: "BODY",
       text: body_text.trim(),
+      ...(body_text.includes("{{") ? {
+        example: {
+          body_text: [
+            Array.from({ length: (body_text.match(/\{\{\d+\}\}/g) || []).length }, (_, i) => 
+              i === 0 ? "Customer" : `value${i + 1}`
+            ),
+          ],
+        },
+      } : {}),
     });
 
     if (footer_text?.trim()) {
@@ -174,6 +180,8 @@ export async function POST(req: NextRequest) {
       language: language || "en",
       components,
     };
+
+    console.log("[templates] Creating template with payload:", JSON.stringify(payload, null, 2));
 
     const url = `https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}/message_templates`;
 
