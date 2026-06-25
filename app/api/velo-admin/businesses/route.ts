@@ -66,6 +66,8 @@ export async function GET(req: NextRequest) {
         "bot_enabled",
         "enable_ordering",
         "enable_reviews",
+        "crm_access",
+        "crm_billing_cycle",
       ].join(", "),
     )
     .order("created_at", { ascending: false });
@@ -141,6 +143,13 @@ export async function POST(req: NextRequest) {
     meta_phone_id?: string | null;
     meta_api_token?: string | null;
     waba_id?: string | null;
+    crm_access?: string;
+    bot_mode?: string;
+    bot_enabled?: boolean;
+    enable_ordering?: boolean;
+    enable_reviews?: boolean;
+    billing_plan?: string;
+    billing_cycle?: string;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -194,6 +203,26 @@ export async function POST(req: NextRequest) {
   if (body.waba_id !== undefined) {
     const v = typeof body.waba_id === "string" ? body.waba_id.trim() : "";
     if (v) insert.waba_id = v;
+  }
+
+  if (body.crm_access !== undefined && ["bot_only", "crm_only", "full"].includes(String(body.crm_access))) {
+    insert.crm_access = body.crm_access;
+  }
+
+  if (body.bot_mode !== undefined && ["full_ecommerce", "reviews_only", "info_only"].includes(String(body.bot_mode))) {
+    insert.bot_mode = body.bot_mode;
+  }
+
+  if (body.bot_enabled !== undefined) insert.bot_enabled = Boolean(body.bot_enabled);
+  if (body.enable_ordering !== undefined) insert.enable_ordering = Boolean(body.enable_ordering);
+  if (body.enable_reviews !== undefined) insert.enable_reviews = Boolean(body.enable_reviews);
+
+  if (body.billing_plan !== undefined && ["Starter", "Growth", "Scale"].includes(String(body.billing_plan))) {
+    insert.billing_plan = body.billing_plan;
+  }
+
+  if (body.billing_cycle !== undefined && ["Monthly", "Yearly"].includes(String(body.billing_cycle))) {
+    insert.billing_cycle = body.billing_cycle;
   }
 
   const { data, error } = await admin.from("businesses").insert(insert).select(SELECT_NEW).single();

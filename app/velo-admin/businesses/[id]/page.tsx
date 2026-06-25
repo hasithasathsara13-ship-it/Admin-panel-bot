@@ -18,6 +18,8 @@ type BusinessDetail = {
   bot_enabled: boolean | null;
   enable_ordering: boolean | null;
   enable_reviews: boolean | null;
+  crm_access: string | null;
+  crm_billing_cycle: string | null;
   billing_plan: string | null;
   billing_cycle: string | null;
   subscription_status: string | null;
@@ -68,6 +70,8 @@ export default function BusinessDetailPage() {
   const [botEnabled, setBotEnabled] = useState(true);
   const [enableOrdering, setEnableOrdering] = useState(true);
   const [enableReviews, setEnableReviews] = useState(false);
+  // Product access
+  const [crmAccess, setCrmAccess] = useState("bot_only");
 
   const loadBusiness = useCallback(async () => {
     setLoading(true);
@@ -100,6 +104,7 @@ export default function BusinessDetailPage() {
     setBotEnabled(found.bot_enabled !== false);
     setEnableOrdering(found.enable_ordering !== false);
     setEnableReviews(found.enable_reviews === true);
+    setCrmAccess(found.crm_access || "bot_only");
     setLoading(false);
   }, [id, router]);
 
@@ -126,6 +131,7 @@ export default function BusinessDetailPage() {
         bot_enabled: botEnabled,
         enable_ordering: enableOrdering,
         enable_reviews: enableReviews,
+        crm_access: crmAccess,
       }),
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -268,8 +274,42 @@ export default function BusinessDetailPage() {
         </div>
       </section>
 
-      {/* Bot Control */}
+      {/* Product Access */}
       <section className="rounded-2xl border border-white/10 bg-[#0c101c]/80 p-5">
+        <h2 className="text-sm font-semibold text-white mb-1">📦 Product Access</h2>
+        <p className="text-[11px] text-white/50 mb-4">Which Velo products this business has access to.</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {[
+            { key: "bot_only", icon: "🤖", title: "Bot Only", desc: "WhatsApp Bot + Admin Panel. CRM dashboard locked." },
+            { key: "crm_only", icon: "📊", title: "CRM Only", desc: "Scraper + Broadcast + Labels. Bot features disabled." },
+            { key: "full", icon: "⚡", title: "Full Bundle", desc: "Bot + CRM complete. Everything enabled." },
+          ].map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => setCrmAccess(p.key)}
+              className={[
+                "rounded-xl border p-3 text-left transition-all",
+                crmAccess === p.key
+                  ? "border-emerald-500/50 bg-emerald-500/15 ring-1 ring-inset ring-emerald-500/30"
+                  : "border-white/10 bg-white/[0.02] hover:border-white/20",
+              ].join(" ")}
+            >
+              <div className="text-lg">{p.icon}</div>
+              <div className="mt-1 text-sm font-semibold text-white">{p.title}</div>
+              <div className="mt-0.5 text-[11px] text-white/50 leading-snug">{p.desc}</div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Bot Control */}
+      <section className={["relative rounded-2xl border border-white/10 bg-[#0c101c]/80 p-5", crmAccess === "crm_only" ? "opacity-50 pointer-events-none" : ""].join(" ")}>
+        {crmAccess === "crm_only" && (
+          <div className="absolute right-4 top-4 z-10 rounded-full bg-amber-500/20 px-3 py-1 text-[10px] font-semibold text-amber-300 ring-1 ring-inset ring-amber-500/30 pointer-events-auto">
+            Bot not included in plan
+          </div>
+        )}
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-sm font-semibold text-white">🤖 AI Bot Control</h2>

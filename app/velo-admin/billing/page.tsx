@@ -14,6 +14,8 @@ type BusinessRow = {
   billing_next_due_at: string | null;
   billing_messages_used_period: number | null;
   billing_last_marked_paid_at: string | null;
+  crm_access: string | null;
+  crm_billing_cycle: string | null;
 };
 
 const PLAN_PRICES: Record<string, number> = {
@@ -21,6 +23,9 @@ const PLAN_PRICES: Record<string, number> = {
   Growth: 9900,
   Scale: 19900,
 };
+
+const CRM_PRICE = 2000; // CRM standalone / add-on monthly price (LKR)
+const CRM_ADDON_PRICE = 1500; // CRM as add-on when bundled with bot
 
 function lkr(n: number) {
   return `LKR ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -30,6 +35,15 @@ function planMonthlyEquivalent(plan: string, cycle: string): number {
   const monthly = PLAN_PRICES[plan] ?? PLAN_PRICES.Starter;
   if (cycle === "Yearly") return Math.round((monthly * 10) / 12);
   return monthly;
+}
+
+/** Total monthly equivalent price based on product access. */
+function totalMonthlyPrice(biz: BusinessRow): number {
+  const access = biz.crm_access || "bot_only";
+  const botPrice = planMonthlyEquivalent(biz.billing_plan || "Starter", biz.billing_cycle || "Monthly");
+  if (access === "crm_only") return CRM_PRICE;
+  if (access === "full") return botPrice + CRM_ADDON_PRICE;
+  return botPrice; // bot_only
 }
 
 function daysLeft(iso: string | null): { label: string; tone: "good" | "warn" | "bad" } {
@@ -131,7 +145,7 @@ export default function VeloBillingPage() {
       const status = r.subscription_status || "active";
       if (status === "active") {
         active++;
-        mrr += planMonthlyEquivalent(r.billing_plan || "Starter", r.billing_cycle || "Monthly");
+        mrr += totalMonthlyPrice(r);
       } else if (status === "past_due") {
         pastDue++;
       } else if (status === "canceled") {
@@ -226,8 +240,11 @@ export default function VeloBillingPage() {
             const status = biz.subscription_status || "active";
             const plan = biz.billing_plan || "Starter";
             const cycle = biz.billing_cycle || "Monthly";
+            const access = biz.crm_access || "bot_only";
             const due = daysLeft(biz.billing_next_due_at);
             const busy = busyId === biz.id;
+            const accessLabel = access === "crm_only" ? "CRM Only" : access === "full" ? "Full Bundle" : "Bot Only";
+            const monthlyTotal = totalMonthlyPrice(biz);
             return (
               <div
                 key={biz.id}
@@ -249,6 +266,12 @@ export default function VeloBillingPage() {
                       ].join(" ")}>
                         {status.replace("_", " ")}
                       </span>
+                      <span className={[
+                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                        access === "full" ? "bg-violet-500/15 text-violet-300" : access === "crm_only" ? "bg-cyan-500/15 text-cyan-300" : "bg-white/10 text-white/60",
+                      ].join(" ")}>
+                        {accessLabel}
+                      </span>
                     </div>
                     <div className="mt-1 flex items-center gap-3 text-xs text-white/50">
                       <span>{biz.whatsapp_number || "No number"}</span>
@@ -263,17 +286,19 @@ export default function VeloBillingPage() {
 
                   {/* Plan & Cycle selectors */}
                   <div className="flex items-center gap-2">
-                    <select
-                      value={plan}
-                      disabled={busy}
-                      onChange={(e) => void updateBilling(biz.id, { billing_plan: e.target.value })}
-                      className="velo-admin-select rounded-lg border border-white/10 px-3 py-1.5 text-xs outline-none focus:border-indigo-500/50"
-                      style={{ colorScheme: "dark" }}
-                    >
-                      <option value="Starter">Starter — {lkr(PLAN_PRICES.Starter)}/mo</option>
-                      <option value="Growth">Growth — {lkr(PLAN_PRICES.Growth)}/mo</option>
-                      <option value="Scale">Scale — {lkr(PLAN_PRICES.Scale)}/mo</option>
-                    </select>
+                    {access !== "crm_only" && (
+                      <select
+                        value={plan}
+                        disabled={busy}
+                        onChange={(e) => void updateBilling(biz.id, { billing_plan: e.target.value })}
+                        className="velo-admin-select rounded-lg border border-white/10 px-3 py-1.5 text-xs outline-none focus:border-indigo-500/50"
+                        style={{ colorScheme: "dark" }}
+                      >
+                        <option value="Starter">Starter — {lkr(PLAN_PRICES.Starter)}/mo</option>
+                        <option value="Growth">Growth — {lkr(PLAN_PRICES.Growth)}/mo</option>
+                        <option value="Scale">Scale — {lkr(PLAN_PRICES.Scale)}/mo</option>
+                      </select>
+                    )}
 
                     {/* Monthly / Yearly toggle */}
                     <div className="flex rounded-lg bg-white/5 p-0.5">
@@ -301,12 +326,15 @@ export default function VeloBillingPage() {
                       </button>
                     </div>
 
-                    {/* Price display */}
-                    <div className="text-right min-w-[90px]">
+                    {/* Price display — total based on product access */}
+                    <div className="text-right min-w-[100px]">
                       <div className="font-mono text-sm font-bold text-white">
-                        {cycle === "Yearly" ? lkr(PLAN_PRICES[plan] * 10) : lkr(PLAN_PRICES[plan])}
+                        {cycle === "Yearly" ? lkr(monthlyTotal * 10) : lkr(monthlyTotal)}
                       </div>
-                      <div className="text-[10px] text-white/40">{cycle === "Yearly" ? "per year" : "per month"}</div>
+                      <div className="text-[10px] text-white/40">
+                        {cycle === "Yearly" ? "per year" : "per month"}
+                        {access === "full" ? " (bot + CRM)" : access === "crm_only" ? " (CRM)" : ""}
+                      </div>
                     </div>
                   </div>
 

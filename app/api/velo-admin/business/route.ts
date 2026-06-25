@@ -41,6 +41,8 @@ export async function PATCH(req: NextRequest) {
     bot_enabled?: boolean;
     enable_ordering?: boolean;
     enable_reviews?: boolean;
+    crm_access?: string;
+    crm_billing_cycle?: string;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -140,6 +142,22 @@ export async function PATCH(req: NextRequest) {
 
   if (body.enable_reviews !== undefined) {
     patch.enable_reviews = Boolean(body.enable_reviews);
+  }
+
+  if (body.crm_access !== undefined) {
+    const c = String(body.crm_access);
+    if (!["bot_only", "crm_only", "full"].includes(c)) {
+      return NextResponse.json({ error: "Invalid crm_access" }, { status: 400 });
+    }
+    patch.crm_access = c;
+  }
+
+  if (body.crm_billing_cycle !== undefined) {
+    const c = String(body.crm_billing_cycle);
+    if (!["Monthly", "Yearly"].includes(c)) {
+      return NextResponse.json({ error: "Invalid crm_billing_cycle" }, { status: 400 });
+    }
+    patch.crm_billing_cycle = c;
   }
 
   if (Object.keys(patch).length === 0) {
