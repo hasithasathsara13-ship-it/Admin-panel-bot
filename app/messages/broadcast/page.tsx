@@ -45,6 +45,7 @@ export default function BroadcastPage() {
   // Sending state
   const [sending, setSending] = useState(false);
   const [manualWarningOpen, setManualWarningOpen] = useState(false);
+  const [customTextPopup, setCustomTextPopup] = useState(false);
   const [result, setResult] = useState<{
     sent: number;
     failed: number;
@@ -391,7 +392,6 @@ export default function BroadcastPage() {
               { key: "recent_7d", label: "Active (7d)" },
               { key: "recent_30d", label: "Active (30d)" },
               { key: "inactive_30d", label: "Inactive (30d+)" },
-              { key: "manual", label: "Manual Entry" },
             ].map((f) => (
               <button
                 key={f.key}
@@ -582,13 +582,8 @@ export default function BroadcastPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setMessageType("text")}
-                className={[
-                  "rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all",
-                  messageType === "text"
-                    ? "bg-white text-[var(--color-text-primary)] shadow-sm"
-                    : "text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]",
-                ].join(" ")}
+                onClick={() => setCustomTextPopup(true)}
+                className="rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]"
               >
                 Custom Text
               </button>
@@ -703,6 +698,58 @@ export default function BroadcastPage() {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Custom Text Redirect Popup */}
+      {customTextPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-sm rounded-2xl border border-indigo-200 bg-white p-6 shadow-2xl text-center">
+            <div className="text-4xl">✨</div>
+            <h3 className="mt-3 text-lg font-bold text-gray-900">Custom Text Broadcasts</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              Send custom text messages to your contacts using <strong>Velo AI Bulk Pro</strong> — with scheduling, labels, and advanced targeting.
+            </p>
+            <div className="mt-5 flex flex-col gap-2">
+              <a
+                href="https://bulk.veloai.pro"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+              >
+                Go to Velo AI Bulk Pro →
+              </a>
+              <button
+                type="button"
+                onClick={() => setCustomTextPopup(false)}
+                className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Pro Promo */}
+      <div className="mt-8 rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-500/10 via-violet-500/5 to-transparent p-6 text-center">
+        <div className="mx-auto max-w-md">
+          <div className="text-3xl">🚀</div>
+          <h3 className="mt-2 text-lg font-bold text-[var(--color-text-primary)]">Need more power?</h3>
+          <p className="mt-1.5 text-sm text-[var(--color-text-secondary)]">
+            Unlock advanced bulk messaging with CRM labels, scheduled campaigns, contact scraping, and analytics with <strong>Velo AI Bulk Pro</strong>.
+          </p>
+          <a
+            href="https://bulk.veloai.pro"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 hover:opacity-90 transition-opacity"
+          >
+            Try Velo AI Bulk Pro
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+            </svg>
+          </a>
         </div>
       </div>
 
