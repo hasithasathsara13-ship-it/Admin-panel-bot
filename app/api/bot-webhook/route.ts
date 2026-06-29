@@ -53,6 +53,7 @@ type Business = {
   bot_enabled: boolean | null;
   enable_ordering: boolean | null;
   enable_reviews: boolean | null;
+  billing_plan: string | null;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -322,7 +323,7 @@ export async function POST(req: NextRequest) {
     let { data: business } = await supabaseAdmin
       .from("businesses")
       .select(
-        "id, business_name, brand_voice, meta_api_token, meta_phone_id, meta_phone_number_id, whatsapp_number, bot_mode, bot_enabled, enable_ordering, enable_reviews",
+        "id, business_name, brand_voice, meta_api_token, meta_phone_id, meta_phone_number_id, whatsapp_number, bot_mode, bot_enabled, enable_ordering, enable_reviews, billing_plan",
       )
       .eq("whatsapp_number", `+${businessPhoneNumber}`)
       .single<Business>();
@@ -439,6 +440,34 @@ export async function POST(req: NextRequest) {
       }
       await supabaseAdmin.from("messages").insert([userRow]);
       return new NextResponse("OK", { status: 200 });
+    }
+
+    // ── Quota check — use dynamic plan limits ───────────────────────────────
+    {
+      const { getPlanMessageLimit } = await import("@/lib/plansDb");
+      const planLimit = await getPlanMessageLimit(business.billing_plan || "Starter");
+      const bufferRatio = 0.2;
+      const hardCap = planLimit + Math.floor(planLimit * bufferRatio);
+      // Get current usage from the business row
+      const { data: usageRow } = await supabaseAdmin
+        .from("businesses")
+        .select("billing_messages_used_period, billing_quota_hard_block")
+        .eq("id", business.id)
+        .maybeSingle();
+      const used = (usageRow as { billing_messages_used_period?: number })?.billing_messages_used_period ?? 0;
+      const hardBlock = (usageRow as { billing_quota_hard_block?: boolean })?.billing_quota_hard_block ?? false;
+
+      if (hardBlock || used >= hardCap) {
+        // Quota exceeded — still log the message but don't reply
+        await supabaseAdmin.from("messages").insert([userRow]);
+        return new NextResponse("OK", { status: 200 });
+      }
+
+      // Increment usage counter
+      await supabaseAdmin
+        .from("businesses")
+        .update({ billing_messages_used_period: used + 1 })
+        .eq("id", business.id);
     }
 
     // ── Data pre-fetching ───────────────────────────────────────────────────

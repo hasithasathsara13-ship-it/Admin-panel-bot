@@ -25,6 +25,10 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "Velo.ai Dashboard",
   description: "Velo.ai SaaS dashboard shell",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({

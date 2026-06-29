@@ -78,11 +78,19 @@ export function Topbar({
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <div className="shrink-0 lg:hidden">
             <Image
-              src="/velo-logo.png"
+              src="/logo-dark.png"
               alt="Velo.ai"
               width={120}
               height={40}
-              className="h-auto w-24"
+              className="h-auto w-24 dark:hidden"
+              priority
+            />
+            <Image
+              src="/logo-light.png"
+              alt="Velo.ai"
+              width={120}
+              height={40}
+              className="h-auto w-24 hidden dark:block"
               priority
             />
           </div>

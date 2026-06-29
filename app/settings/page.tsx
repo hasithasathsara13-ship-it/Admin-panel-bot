@@ -2,14 +2,23 @@
 
 import { useEffect, useState } from "react";
 import {
-  PLAN_CONFIG,
-  PLAN_ORDER,
   bufferExtraMessages,
   graceEndsAtIso,
   hardCapMessages,
   normalizePlanName,
   yearlyTotalLkr,
+  PLAN_CONFIG,
+  PLAN_ORDER,
 } from "../../lib/billing";
+
+type DbPlan = {
+  id: string;
+  display_name: string;
+  description: string;
+  monthly_price_lkr: number;
+  included_messages: number;
+  features: string[];
+};
 import { supabase } from "../../lib/supabaseClient";
 import { getActiveShopId } from "../../lib/activeShopId";
 import { Button } from "../../components/ui/button";
@@ -50,6 +59,18 @@ export default function SettingsPage() {
   const [billingMessagesUsed, setBillingMessagesUsed] = useState(0);
   const [billingQuotaHardBlock, setBillingQuotaHardBlock] = useState(false);
   const [billingLastMarkedPaidAt, setBillingLastMarkedPaidAt] = useState<string | null>(null);
+  const [dbPlans, setDbPlans] = useState<DbPlan[]>([]);
+
+  useEffect(() => {
+    // Fetch plans from API
+    void (async () => {
+      try {
+        const res = await fetch("/api/plans");
+        const data = await res.json();
+        if (res.ok && data.plans) setDbPlans(data.plans);
+      } catch { /* use fallback PLAN_CONFIG */ }
+    })();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -321,6 +342,7 @@ export default function SettingsPage() {
                 billingMessagesUsed={billingMessagesUsed}
                 billingQuotaHardBlock={billingQuotaHardBlock}
                 billingLastMarkedPaidAt={billingLastMarkedPaidAt}
+                dbPlans={dbPlans}
               />
             ) : null}
           </CardContent>
@@ -339,6 +361,7 @@ function BillingSettingsView({
   billingMessagesUsed,
   billingQuotaHardBlock,
   billingLastMarkedPaidAt,
+  dbPlans,
 }: {
   loading: boolean;
   billingPlan: string;
@@ -348,10 +371,13 @@ function BillingSettingsView({
   billingMessagesUsed: number;
   billingQuotaHardBlock: boolean;
   billingLastMarkedPaidAt: string | null;
+  dbPlans: DbPlan[];
 }) {
   const planName = normalizePlanName(billingPlan);
-  const cfg = PLAN_CONFIG[planName];
-  const included = cfg.includedMessages;
+
+  // Use dynamic plans from DB, fall back to hardcoded
+  const activePlanDb = dbPlans.find((p) => p.id === planName);
+  const included = activePlanDb?.included_messages ?? PLAN_CONFIG[planName].includedMessages;
   const bufferExtra = bufferExtraMessages(included);
   const hardCap = hardCapMessages(included);
 
@@ -474,14 +500,13 @@ function BillingSettingsView({
           Highlighted card matches your active subscription tier (managed by support).
         </p>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
-          {PLAN_ORDER.map((key) => {
-            const p = PLAN_CONFIG[key];
-            const active = planName === key;
-            const monthly = p.monthlyPriceLkr.toLocaleString();
-            const yearly = yearlyTotalLkr(p.monthlyPriceLkr).toLocaleString();
+          {(dbPlans.length > 0 ? dbPlans : PLAN_ORDER.map((key) => ({ id: key, display_name: key, description: PLAN_CONFIG[key].description, monthly_price_lkr: PLAN_CONFIG[key].monthlyPriceLkr, included_messages: PLAN_CONFIG[key].includedMessages, features: [] }))).map((p) => {
+            const active = planName === p.id;
+            const monthly = p.monthly_price_lkr.toLocaleString();
+            const yearly = yearlyTotalLkr(p.monthly_price_lkr).toLocaleString();
             return (
               <div
-                key={key}
+                key={p.id}
                 className={[
                   "rounded-2xl border p-4 text-left transition-all",
                   active ? "ring-2" : "opacity-90",
@@ -492,10 +517,10 @@ function BillingSettingsView({
                   ...(active ? { '--tw-ring-color': 'var(--color-accent-glow)' } as React.CSSProperties : {}),
                 }}
               >
-                <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{key}</div>
+                <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{p.display_name}</div>
                 <div className="mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>{p.description}</div>
                 <div className="mt-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                  Includes {p.includedMessages.toLocaleString()} msgs / period + 20% courtesy
+                  Includes {p.included_messages.toLocaleString()} msgs / period + 20% courtesy
                 </div>
                 <div className="mt-3 text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                   LKR {monthly} / mo

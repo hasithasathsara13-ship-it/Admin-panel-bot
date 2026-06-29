@@ -24,8 +24,12 @@ const PLAN_PRICES: Record<string, number> = {
   Scale: 19900,
 };
 
-const CRM_PRICE = 2000; // CRM standalone / add-on monthly price (LKR)
-const CRM_ADDON_PRICE = 1500; // CRM as add-on when bundled with bot
+const CRM_PRICE = 2000;
+const CRM_ADDON_PRICE = 1500;
+
+// NOTE: Plan prices above are defaults/fallbacks.
+// The billing page loads actual prices from the 'plans' table at runtime.
+// When the admin edits plans via /velo-admin/plans, the DB is the source of truth.
 
 function lkr(n: number) {
   return `LKR ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -86,6 +90,22 @@ export default function VeloBillingPage() {
 
   useEffect(() => {
     void load();
+    // Fetch dynamic plan prices
+    void (async () => {
+      try {
+        const res = await fetch("/api/velo-admin/plans", { credentials: "include" });
+        const data = await res.json();
+        if (res.ok && data.plans) {
+          const prices: Record<string, number> = {};
+          for (const p of data.plans as Array<{ id: string; monthly_price_lkr: number }>) {
+            prices[p.id] = p.monthly_price_lkr;
+          }
+          if (Object.keys(prices).length > 0) {
+            Object.assign(PLAN_PRICES, prices);
+          }
+        }
+      } catch { /* use defaults */ }
+    })();
   }, [load]);
 
   async function updateBilling(id: string, patch: Record<string, unknown>) {

@@ -99,11 +99,19 @@ export function Sidebar() {
       <div className="px-6 pb-2 pt-7">
         <div className="flex items-center">
           <Image
-            src="/velo-logo.png"
+            src="/logo-dark.png"
             alt="Velo.ai"
             width={176}
             height={58}
-            className="h-auto w-36"
+            className="h-auto w-36 dark:hidden"
+            priority
+          />
+          <Image
+            src="/logo-light.png"
+            alt="Velo.ai"
+            width={176}
+            height={58}
+            className="h-auto w-36 hidden dark:block"
             priority
           />
         </div>

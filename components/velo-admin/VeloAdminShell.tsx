@@ -9,6 +9,7 @@ const nav = [
   { href: "/velo-admin/businesses", label: "Businesses", icon: "🏢" },
   { href: "/velo-admin/add-business", label: "Add Business", icon: "➕" },
   { href: "/velo-admin/billing", label: "Billing", icon: "💳" },
+  { href: "/velo-admin/plans", label: "Edit Plans", icon: "⚙️" },
 ] as const;
 
 export function VeloAdminShell({ children }: { children: React.ReactNode }) {

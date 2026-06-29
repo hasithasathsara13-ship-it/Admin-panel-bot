@@ -426,6 +426,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         : null;
       const quotaHardBlock = Boolean(row.billing_quota_hard_block);
 
+      console.log("[DashboardShell] Billing check:", { shopId, subscriptionStatus, nextDue, quotaHardBlock });
+
       const blockMain = isPastDueBlocking({
         subscriptionStatus,
         billingNextDueAt: nextDue,

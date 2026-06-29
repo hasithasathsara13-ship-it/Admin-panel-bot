@@ -172,11 +172,19 @@ function LoginPageContent() {
             <div className="w-full max-w-sm space-y-6">
               <div className="inline-flex rounded-full border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/70 dark:bg-indigo-950/50 px-4 py-2 shadow-sm">
                 <Image
-                  src="/velo-logo.png"
+                  src="/logo-dark.png"
                   alt="Velo.ai"
                   width={120}
                   height={40}
-                  className="h-auto w-24"
+                  className="h-auto w-24 dark:hidden"
+                  priority
+                />
+                <Image
+                  src="/logo-light.png"
+                  alt="Velo.ai"
+                  width={120}
+                  height={40}
+                  className="h-auto w-24 hidden dark:block"
                   priority
                 />
               </div>
