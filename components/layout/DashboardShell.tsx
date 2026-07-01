@@ -547,7 +547,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <main
             className={[
               "relative flex min-h-0 flex-1 flex-col animate-fade-in",
-              isChatRoute ? "overflow-hidden p-0 lg:p-0" : "overflow-y-auto px-4 py-8 lg:px-8",
+              isChatRoute ? "overflow-hidden p-0 lg:p-0" : "overflow-y-auto px-4 py-8 pb-24 lg:px-8 lg:pb-8",
               billingOverlay?.blockMain ? "pointer-events-none select-none opacity-[0.38]" : "",
             ].join(" ")}
           >
