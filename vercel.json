@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "app/api/bot-webhook/route.ts": {
+      "maxDuration": 60
+    }
+  },
+  "regions": ["sin1"]
+}

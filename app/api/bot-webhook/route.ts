@@ -473,40 +473,31 @@ export async function POST(req: NextRequest) {
       console.warn("[bot-webhook] Quota check failed (non-blocking):", quotaErr);
     }
 
-    // ── Data pre-fetching ───────────────────────────────────────────────────
-    const { data: allProducts } = await supabaseAdmin.from("products").select("*").eq("shop_id", business.id);
-    const { data: pendingOrder } = orderingEnabled
-      ? await supabaseAdmin
-          .from("orders")
-          .select("*")
-          .eq("customer_phone", fromCustomer)
-          .eq("shop_id", business.id)
-          .eq("status", "Pending")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single()
-      : { data: null };
-    const { data: history } = await supabaseAdmin
-      .from("messages")
-      .select("role, content")
-      .eq("phone_number", fromCustomer)
-      .eq("shop_id", business.id)
-      .order("created_at", { ascending: false })
-      .limit(18);
+    // ── Data pre-fetching — run all queries in parallel ─────────────────────
+    const [
+      { data: allProducts },
+      pendingOrderResult,
+      { data: history },
+      reviewsResult,
+    ] = await Promise.all([
+      supabaseAdmin.from("products").select("*").eq("shop_id", business.id),
+      orderingEnabled
+        ? supabaseAdmin.from("orders").select("*").eq("customer_phone", fromCustomer).eq("shop_id", business.id).eq("status", "Pending").order("created_at", { ascending: false }).limit(1).single()
+        : Promise.resolve({ data: null }),
+      supabaseAdmin.from("messages").select("role, content").eq("phone_number", fromCustomer).eq("shop_id", business.id).order("created_at", { ascending: false }).limit(12),
+      reviewsEnabled
+        ? supabaseAdmin.from("reviews").select("image_url").eq("shop_id", business.id).order("sort_order", { ascending: true }).limit(6)
+        : Promise.resolve({ data: null }),
+    ]);
+
+    const pendingOrder = pendingOrderResult.data;
 
     // ── 3a. Conditional review fetching ─────────────────────────────────────
     let reviewsText = "";
     let reviewImageUrls: string[] = [];
     let reviewsLink = "";
     if (reviewsEnabled) {
-      // Fetch review screenshots from the `reviews` table (images uploaded via admin panel)
-      const { data: reviewRows } = await supabaseAdmin
-        .from("reviews")
-        .select("image_url")
-        .eq("shop_id", business.id)
-        .order("sort_order", { ascending: true })
-        .limit(6);
-      reviewImageUrls = (reviewRows ?? []).map((r: { image_url: string }) => r.image_url).filter(Boolean);
+      reviewImageUrls = ((reviewsResult.data ?? []) as Array<{ image_url: string }>).map((r) => r.image_url).filter(Boolean);
 
       // Fetch the reviews link from the business
       const { data: bizReviewLink } = await supabaseAdmin
@@ -720,7 +711,8 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
 
     // Use gpt-4.1 for Singlish (better quality), gpt-4.1-mini for English (faster + cheaper)
     const useSinglish = customerUsesSinglish(customerMessageText, validHistory);
-    const aiModel = useSinglish ? "gpt-4.1" : "gpt-4.1-mini";
+    // On production, gpt-4.1 adds 3-5s latency — use mini always, only upgrade for complex Singlish
+    const aiModel = useSinglish && validHistory.length > 0 ? "gpt-4.1" : "gpt-4.1-mini";
 
     const response = await getOpenAI().chat.completions.create({
       model: aiModel,
