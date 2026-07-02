@@ -588,6 +588,9 @@ The chat is already in payment and/or delivery details (or this customer has a p
 
     const attachNameList = allProducts?.length ? allProducts.map((p) => `"${p.name}"`).join(", ") : "none";
 
+    // Detect language BEFORE building the system prompt
+    const useSinglish = customerUsesSinglish(customerMessageText, validHistory);
+
     const greetingRule =
       validHistory.length === 0
         ? `FIRST MESSAGE (CRITICAL): Start with "This is an automated AI chatbot. Welcome to ${business.business_name}! How may I help you?" — keep it exactly like this, one line. Then if they asked anything, answer it after.`
@@ -723,8 +726,6 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
       });
     }
 
-    // Use gpt-4.1 for Singlish (better quality), gpt-4.1-mini for English (faster + cheaper)
-    const useSinglish = customerUsesSinglish(customerMessageText, validHistory);
     // Singlish → gpt-4.1 (best, most natural), English → gpt-4.1-mini (faster)
     const aiModel = useSinglish ? "gpt-4.1" : "gpt-4.1-mini";
 
