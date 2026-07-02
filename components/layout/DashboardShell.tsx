@@ -420,9 +420,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       }
 
       const row = data as Record<string, unknown>;
-      const subscriptionStatus = String(row.subscription_status ?? "active");
-      const nextDue = row.billing_next_due_at
-        ? String(row.billing_next_due_at)
+      // DEV TEST: check for test override in localStorage
+      const testExpired = typeof window !== "undefined" && window.localStorage.getItem("test_billing_expired") === "1";
+      const subscriptionStatus = testExpired ? "past_due" : String(row.subscription_status ?? "active");
+      const nextDue = testExpired
+        ? new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString() // 4 days ago
+        : row.billing_next_due_at ? String(row.billing_next_due_at) : null;
         : null;
       const quotaHardBlock = Boolean(row.billing_quota_hard_block);
 
@@ -462,6 +465,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     };
   }, [session, sessionLoading, isLoginRoute, isVeloAdminRoute, pathname, supabase]);
 
+  // Redirect blocked routes when expired
+  const ALLOWED_WHEN_EXPIRED = ["/dashboard", "/orders", "/messages", "/settings"];
+  const isBlockedRoute = (billingOverlay?.blockMain ?? false) &&
+    !ALLOWED_WHEN_EXPIRED.some((r) => pathname === r || pathname.startsWith(r + "/"));
+
+  useEffect(() => {
+    if (isBlockedRoute) {
+      router.replace("/dashboard");
+    }
+    // Only run when blockMain or pathname changes — NOT on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billingOverlay?.blockMain, pathname]);
+
   if (isLoginRoute || isVeloAdminRoute) {
     return (
       <div className="min-h-dvh bg-[var(--background)]">
@@ -484,7 +500,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-[var(--background)]">
       <div className="mx-auto flex h-dvh max-h-dvh min-h-0 w-full max-w-screen-2xl overflow-hidden">
-        <Sidebar />
+        <Sidebar isExpired={billingOverlay?.blockMain ?? false} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0">
           <Topbar
             theme={theme}

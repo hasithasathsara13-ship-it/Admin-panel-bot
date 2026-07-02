@@ -443,7 +443,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Quota check — use dynamic plan limits ───────────────────────────────
-    {
+    try {
       const { getPlanMessageLimit } = await import("@/lib/plansDb");
       const planLimit = await getPlanMessageLimit(business.billing_plan || "Starter");
       const bufferRatio = 0.2;
@@ -468,6 +468,9 @@ export async function POST(req: NextRequest) {
         .from("businesses")
         .update({ billing_messages_used_period: used + 1 })
         .eq("id", business.id);
+    } catch (quotaErr) {
+      // Quota check failed — log the error but DO NOT block the message
+      console.warn("[bot-webhook] Quota check failed (non-blocking):", quotaErr);
     }
 
     // ── Data pre-fetching ───────────────────────────────────────────────────

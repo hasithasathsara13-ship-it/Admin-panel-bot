@@ -89,9 +89,13 @@ const navItems = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({ isExpired = false }: { isExpired?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  const ALLOWED_WHEN_EXPIRED = ["/dashboard", "/orders", "/messages", "/settings"];
+  const isAllowed = (href: string) =>
+    !isExpired || ALLOWED_WHEN_EXPIRED.some((r) => href === r || href.startsWith(r + "/"));
 
   return (
     <aside className="hidden lg:flex w-[260px] shrink-0 flex-col border-r border-[var(--panel-border)] bg-[var(--panel-bg-strong)] backdrop-blur-xl">
@@ -130,6 +134,24 @@ export function Sidebar() {
             pathname === item.href ||
             (pathname.startsWith(`${item.href}/`) &&
               !navItems.some((other) => other.href !== item.href && other.href.startsWith(`${item.href}/`) && pathname.startsWith(other.href)));
+          const allowed = isAllowed(item.href);
+          const locked = isExpired && !allowed;
+
+          if (locked) {
+            return (
+              <div
+                key={item.href}
+                className="group flex items-center justify-start gap-3 rounded-xl px-3 py-2.5 font-medium opacity-35 cursor-not-allowed select-none"
+                title="Subscription expired — renew to access"
+              >
+                <span className="flex-shrink-0 text-[var(--panel-icon)]">{item.icon}</span>
+                <span className="text-[var(--panel-subtext)]">{item.label}</span>
+                <svg className="ml-auto w-3 h-3 text-[var(--panel-subtext)] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+              </div>
+            );
+          }
 
           return (
             <Link
