@@ -424,9 +424,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       const testExpired = typeof window !== "undefined" && window.localStorage.getItem("test_billing_expired") === "1";
       const subscriptionStatus = testExpired ? "past_due" : String(row.subscription_status ?? "active");
       const nextDue = testExpired
-        ? new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString() // 4 days ago
-        : row.billing_next_due_at ? String(row.billing_next_due_at) : null;
-        : null;
+        ? new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString()
+        : (row.billing_next_due_at ? String(row.billing_next_due_at) : null);
       const quotaHardBlock = Boolean(row.billing_quota_hard_block);
 
       console.log("[DashboardShell] Billing check:", { shopId, subscriptionStatus, nextDue, quotaHardBlock });
