@@ -6,18 +6,17 @@ import {
   supabaseAdminForWhatsApp as supabaseAdmin,
   resolveBusinessForShop,
   whatsappPhoneNumberIdFromBusiness,
+  resolveMetaApiToken,
 } from "@/lib/whatsappMetaPhone";
 
-const META_TOKEN = process.env.META_API_TOKEN;
-
-async function sendWhatsAppText(phoneId: string, to: string, text: string) {
+async function sendWhatsAppText(phoneId: string, token: string, to: string, text: string) {
   try {
     const res = await fetch(
       `https://graph.facebook.com/v18.0/${phoneId}/messages`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${META_TOKEN}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -49,12 +48,108 @@ async function sendWhatsAppText(phoneId: string, to: string, text: string) {
  */
 export async function POST(req: NextRequest) {
   try {
-    if (!META_TOKEN || !supabaseAdmin) {
+    if (!supabaseAdmin) {
       return NextResponse.json(
-        { error: "Server not configured for WhatsApp notifications." },
+        { error: "Server not configured." },
         { status: 500 },
       );
     }
+
+    const body = await req.json();
+    const { shop_id, order_id, customer_phone, product_name } = body ?? {};
+
+    if (!shop_id || !customer_phone) {
+      return NextResponse.json(
+        { error: "Missing shop_id or customer_phone." },
+        { status: 400 },
+      );
+    }
+
+    // Resolve business from either businesses.id or shops.id mappings.
+    let business = await resolveBusinessForShop(shop_id);
+
+    // Fallback: if UI sent stale shop_id, recover via order_id -> orders.shop_id.
+    if (!business && order_id) {
+      const orderLookup = await supabaseAdmin
+        .from("orders")
+        .select("shop_id")
+        .eq("id", order_id)
+        .maybeSingle();
+
+      const orderShopId =
+        !orderLookup.error &&
+        orderLookup.data &&
+        typeof orderLookup.data.shop_id === "string"
+          ? orderLookup.data.shop_id
+          : null;
+
+      if (orderShopId) {
+        business = await resolveBusinessForShop(orderShopId);
+      }
+    }
+
+    if (!business) {
+      return NextResponse.json(
+        { error: "Business not found." },
+        { status: 404 },
+      );
+    }
+
+    const phoneId = whatsappPhoneNumberIdFromBusiness(business);
+
+    // Resolve token per-business (falls back to env)
+    const token = await resolveMetaApiToken(business.id);
+
+    if (!phoneId || !token) {
+      return NextResponse.json(
+        {
+          error:
+            "WhatsApp credentials not configured for this business. Set them in Velo Admin.",
+        },
+        { status: 500 },
+      );
+    }
+
+    // Build the delivery message
+    const storeName = business.business_name || "Our Store";
+    const items = product_name || "your order";
+
+    const message = [
+      `✅ *Order Shipped!*`,
+      ``,
+      `Hi! Your order for *${items}* from *${storeName}* has been marked as Shipped.`,
+      ``,
+      `Thank you for shopping with us! If you have any questions, feel free to message us here. 😊`,
+    ].join("\n");
+
+    const sent = await sendWhatsAppText(phoneId, token, customer_phone, message);
+
+    if (!sent) {
+      return NextResponse.json(
+        { error: "Failed to send WhatsApp message." },
+        { status: 502 },
+      );
+    }
+
+    // Log the outbound message in the messages table
+    await supabaseAdmin.from("messages").insert([
+      {
+        phone_number: customer_phone,
+        role: "model",
+        content: message,
+        shop_id,
+      },
+    ]);
+
+    return NextResponse.json({ ok: true });
+  } catch (err: unknown) {
+    console.error("❌ notify-delivery error:", err);
+    return NextResponse.json(
+      { error: "Internal server error." },
+      { status: 500 },
+    );
+  }
+}
 
     const body = await req.json();
     const { shop_id, order_id, customer_phone, product_name } = body ?? {};

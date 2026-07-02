@@ -711,8 +711,8 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
 
     // Use gpt-4.1 for Singlish (better quality), gpt-4.1-mini for English (faster + cheaper)
     const useSinglish = customerUsesSinglish(customerMessageText, validHistory);
-    // On production, gpt-4.1 adds 3-5s latency — use mini always, only upgrade for complex Singlish
-    const aiModel = useSinglish && validHistory.length > 0 ? "gpt-4.1" : "gpt-4.1-mini";
+    // Singlish → gpt-4.1 (best, most natural), English → gpt-4.1-mini (faster)
+    const aiModel = useSinglish ? "gpt-4.1" : "gpt-4.1-mini";
 
     const response = await getOpenAI().chat.completions.create({
       model: aiModel,
