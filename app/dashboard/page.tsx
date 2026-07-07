@@ -339,12 +339,12 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
             Dashboard
           </h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--color-text-secondary)" }}>
+          <p className="mt-1 text-xs sm:text-sm" style={{ color: "var(--color-text-secondary)" }}>
             AI-powered business analytics and predictions
           </p>
         </div>
@@ -381,7 +381,7 @@ export default function DashboardPage() {
       {/* Revenue Chart + Prediction */}
       <Card>
         <CardContent>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
             <div>
               <h2 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Revenue Trend</h2>
               <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>
@@ -389,16 +389,16 @@ export default function DashboardPage() {
               </p>
             </div>
             {prediction.predicted > 0 && (
-              <div className="text-right">
+              <div className="sm:text-right">
                 <div className="text-xs font-medium" style={{ color: "var(--color-text-tertiary)" }}>Next 7-day forecast</div>
                 <div className="text-lg font-bold" style={{ color: "var(--color-accent)" }}>{formatMoney(prediction.predicted)}</div>
                 <div className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>Confidence: {prediction.confidence}</div>
               </div>
             )}
           </div>
-          <div className="h-56 md:h-64">
+          <div className="h-48 sm:h-56 md:h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={dailyRevenue} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+              <AreaChart data={dailyRevenue} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
                 <defs>
                   <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--color-accent)" stopOpacity={0.3} />
@@ -406,8 +406,8 @@ export default function DashboardPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--color-text-tertiary)" }} />
-                <YAxis tick={{ fontSize: 11, fill: "var(--color-text-tertiary)" }} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--color-text-tertiary)" }} interval={chartDays === 30 ? 4 : 0} />
+                <YAxis tick={{ fontSize: 10, fill: "var(--color-text-tertiary)" }} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} width={35} />
                 <Tooltip
                   contentStyle={{ background: "var(--color-surface-solid)", border: "1px solid var(--color-border-card)", borderRadius: 12, fontSize: 12 }}
                   formatter={(value: unknown) => [formatMoney(Number(value ?? 0)), "Revenue"]}
@@ -429,12 +429,12 @@ export default function DashboardPage() {
             {topProducts.length === 0 ? (
               <div className="h-48 flex items-center justify-center text-sm" style={{ color: "var(--color-text-tertiary)" }}>No order data yet</div>
             ) : (
-              <div className="h-52">
+              <div className="h-48 sm:h-52">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topProducts} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+                  <BarChart data={topProducts} layout="vertical" margin={{ top: 0, right: 10, left: -10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
-                    <XAxis type="number" tick={{ fontSize: 11, fill: "var(--color-text-tertiary)" }} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "var(--color-text-secondary)" }} width={100} />
+                    <XAxis type="number" tick={{ fontSize: 10, fill: "var(--color-text-tertiary)" }} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: "var(--color-text-secondary)" }} width={80} />
                     <Tooltip
                       contentStyle={{ background: "var(--color-surface-solid)", border: "1px solid var(--color-border-card)", borderRadius: 12, fontSize: 12 }}
                       formatter={(value: unknown, name: unknown) => [String(name) === "count" ? `${value} orders` : formatMoney(Number(value ?? 0)), String(name) === "count" ? "Orders" : "Revenue"]}
@@ -455,7 +455,7 @@ export default function DashboardPage() {
             {categoryData.length === 0 ? (
               <div className="h-48 flex items-center justify-center text-sm" style={{ color: "var(--color-text-tertiary)" }}>No data</div>
             ) : (
-              <div className="h-52">
+              <div className="h-48 sm:h-52">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={categoryData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
@@ -474,12 +474,12 @@ export default function DashboardPage() {
       {/* Order Heatmap + AI Insights */}
       <div className="grid gap-4 lg:grid-cols-5">
         {/* Heatmap */}
-        <Card className="lg:col-span-3">
-          <CardContent>
+        <Card className="lg:col-span-3 overflow-hidden">
+          <CardContent className="px-3 sm:px-6">
             <h2 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Order Activity Heatmap</h2>
-            <p className="text-xs mt-0.5 mb-4" style={{ color: "var(--color-text-tertiary)" }}>When your customers order most</p>
-            <div className="overflow-x-auto">
-              <div className="min-w-[500px]">
+            <p className="text-xs mt-0.5 mb-3" style={{ color: "var(--color-text-tertiary)" }}>When your customers order most</p>
+            <div className="overflow-x-auto -mx-1">
+              <div className="min-w-[320px]">
                 <div className="flex gap-0.5 mb-1">
                   <div className="w-10 shrink-0" />
                   {[0, 3, 6, 9, 12, 15, 18, 21].map(h => (
@@ -497,7 +497,7 @@ export default function DashboardPage() {
                       return (
                         <div
                           key={h}
-                          className="flex-1 h-5 rounded-sm transition-colors"
+                          className="flex-1 h-4 sm:h-5 rounded-sm transition-colors"
                           style={{
                             background: intensity === 0
                               ? "var(--color-surface-secondary)"
