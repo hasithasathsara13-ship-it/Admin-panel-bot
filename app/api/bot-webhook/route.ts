@@ -247,8 +247,12 @@ function inferDiscussedProduct(
 }
 
 function customerUsesSinglish(text: string, history: HistMsg[]): boolean {
+  // Actual Sinhala Unicode script in the CURRENT message → always Sinhala
+  if (/[\u0D80-\u0DFF]/.test(text)) return true;
   const blob = [text, ...history.slice(0, 8).map((m) => m.content)].join("\n").toLowerCase();
   if (/english please|speak english|in english/i.test(blob)) return false;
+  // Sinhala Unicode anywhere in recent history
+  if (/[\u0D80-\u0DFF]/.test(blob)) return true;
   return /api gawa|thiyan|thiyen|oyata|oya |mama |denna|puluwan|nehe|hari|ow\b|danata|eka\b|balanna|kohomada|mona |meka |puluwand|rs\./i.test(blob);
 }
 
@@ -526,13 +530,13 @@ export async function POST(req: NextRequest) {
         customerMessageText = audioText;
         userContent.push({
           type: "text",
-          text: `[Customer sent a Sinhala/Singlish voice note — treat this as their exact WhatsApp message. Reply in fluent warm Singlish (unless they clearly spoke English). Never mention voice/audio/transcription. Answer every question they asked.${orderingEnabled ? " If they asked for product photos, you MUST output [ATTACH_PRODUCT: Exact Product Name] using inventory spelling." : ""}]: "${audioText}"`,
+          text: `[Customer sent a Sinhala/Singlish voice note — treat this as their exact WhatsApp message. Reply in fluent warm PROPER SINHALA UNICODE (සිංහල අකුරු), NOT romanized Singlish (unless they clearly spoke English). Never mention voice/audio/transcription. Answer every question they asked.${orderingEnabled ? " If they asked for product photos, you MUST output [ATTACH_PRODUCT: Exact Product Name] using inventory spelling." : ""}]: "${audioText}"`,
         });
       } else {
         userContent.push({
           type: "text",
           text: useSinglish
-            ? "[Voice note was unclear. Reply ONLY in fluent Singlish — e.g. 'Voice eka clear nehe, type karanna puluwanda?' NEVER use English phrases like 'I didn't catch that'.]"
+            ? "[Voice note was unclear. Reply ONLY in proper Sinhala Unicode (සිංහල) — e.g. 'Voice එක clear නෑ, type කරන්න පුළුවන්ද?' NEVER use romanized Singlish or English phrases like 'I didn't catch that'.]"
             : "[Voice note was unclear. Ask them politely to type the message — one short friendly line, in the same language they have been using in this chat.]",
         });
       }
@@ -544,7 +548,7 @@ export async function POST(req: NextRequest) {
     if (lowerMessage.match(/human|manager|call|owner|representative/)) {
       await supabaseAdmin.from("customers").update({ bot_active: false }).eq("phone_number", fromCustomer).eq("shop_id", business.id);
       const handoffMsg = customerUsesSinglish(customerMessageText, validHistory)
-        ? "Hari, Transfer karannam. Bot eka activate karanna one nam 'active' kiyala type karanna."
+        ? "හරි, transfer කරන්නම්. Bot එක activate කරන්න ඕන නම් 'active' කියලා type කරන්න."
         : "I will transfer you to a representative. Type 'active' to reactivate the bot anytime.";
       await sendWhatsAppText(phoneId, token, fromCustomer, handoffMsg);
       await supabaseAdmin.from("messages").insert([
@@ -596,8 +600,8 @@ The chat is already in payment and/or delivery details (or this customer has a p
         ? `FIRST MESSAGE (CRITICAL): Start with "This is an automated AI chatbot. Welcome to ${business.business_name}! How may I help you?" — keep it exactly like this, one line. Then if they asked anything, answer it after.`
         : `ONGOING CHAT: No "Hello/Hi" opener unless they just said hi after a long gap. Jump straight into a natural reply.`;
 
-    const detectedLanguage = useSinglish ? "SINGLISH" : "ENGLISH";
-    const languageInstruction = `CURRENT MESSAGE LANGUAGE: ${detectedLanguage}. You MUST reply in ${detectedLanguage === "ENGLISH" ? "100% English (no Singlish words at all)" : "Singlish"}.`;
+    const detectedLanguage = useSinglish ? "SINHALA" : "ENGLISH";
+    const languageInstruction = `CURRENT MESSAGE LANGUAGE: ${detectedLanguage}. You MUST reply in ${detectedLanguage === "ENGLISH" ? "100% English (no Sinhala/Singlish words at all)" : "proper Sinhala Unicode script (සිංහල අකුරු). Do NOT reply in romanized Singlish — write in actual Sinhala letters"}.`;
 
     // ── 3b. Mode-specific behavioral block ──────────────────────────────────
     let modeInstruction = "";
@@ -667,30 +671,31 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
 
       CRITICAL LANGUAGE RULES (ABSOLUTE OVERRIDE — NO EXCEPTIONS):
       THE USER'S CURRENT MESSAGE LANGUAGE DETERMINES YOUR REPLY LANGUAGE. PERIOD.
-      
+
       DETECT LANGUAGE FROM THE LAST MESSAGE:
-      - If last message contains ONLY English words (like "do you have shoes", "what is the price", "yes", "ok") → reply in 100% ENGLISH. Do NOT mix in any Singlish/Sinhala.
-      - If last message contains Singlish/Sinhala words → reply in Singlish.
+      - If last message contains ONLY English words (like "do you have shoes", "what is the price", "yes", "ok") → reply in 100% ENGLISH. Do NOT mix in any Sinhala/Singlish.
+      - If last message contains Singlish (romanized Sinhala like "thiyanawada", "kiyada") OR actual Sinhala script → reply in PROPER SINHALA UNICODE SCRIPT (සිංහල අකුරු). NEVER reply in romanized Singlish.
       - "do you have shoes" = ENGLISH → reply in English: "Yes we have shoes! Which brand are you looking for?"
-      - "shoes thiyanawada" = SINGLISH → reply in Singlish: "Ow thiyanawa! Mona brand ekada one?"
-      
+      - "shoes thiyanawada" = SINGLISH → reply in SINHALA: "ඔව් තියනවා! මොන brand එකද ඕන?"
+      - "සපත්තු තියනවද" = SINHALA → reply in SINHALA: "ඔව් තියනවා! මොන brand එකද ඕන?"
+
       EXAMPLES OF ENGLISH TRIGGERS (always reply in English to these):
       - "do you have", "what is", "how much", "yes", "no", "ok", "please", "thank you", "I want", "can I", "show me", "what size", "delivery"
-      
-      RULE: If you cannot identify ANY Singlish word in the message, reply in ENGLISH.
-      4. VOICE NOTES: treat transcript as their real message. Default to Singlish unless they clearly spoke English.
-      5. BANNED when customer uses Singlish: never say "I didn't catch that", "I didn't understand", "Could you repeat". Use natural Singlish instead.
 
-      SINGLISH QUALITY (ONLY WHEN REPLYING IN SINGLISH):
+      RULE: If you cannot identify ANY Singlish/Sinhala word in the message, reply in ENGLISH.
+      4. VOICE NOTES: treat transcript as their real message. Default to Sinhala (Unicode) unless they clearly spoke English.
+      5. BANNED when customer uses Sinhala/Singlish: never say "I didn't catch that", "I didn't understand", "Could you repeat". Use natural Sinhala instead (e.g. "clear නෑ, type කරන්න පුළුවන්ද?").
+
+      SINHALA QUALITY (ONLY WHEN REPLYING IN SINHALA):
+      - Write in proper Sinhala Unicode letters (සිංහල), NOT romanized text. This is the #1 rule.
       - KEEP IT SHORT. Sri Lankans text in very short messages. Max 1-2 lines per bubble.
       - Do NOT over-explain. One question at a time. One point per message.
-      - Example of TOO LONG: "Hari, oyata size 42 denna puluwan! Mokakda oyage interest ekak — Nike Air force 1 da, nathnam Nike Air Jordon 1 da? Monawa pick karanne? Payment eka karanne Cash on Delivery (COD) da natham Bank Transfer ekakda?"
-      - Example of CORRECT LENGTH: "Ow size 42 thiyanawa. Mona shoe ekada one?"
-      - Shop stock = "api gawa" + "thiyanawa/thiyenne". Out of stock: "danata nehe" + suggest alt.
-      - "dennam/denna puluwan" = we will give/send. NOT for "we have in stock" (that needs thiyanawa).
-      - Never translate product names / sizes / Rs. amounts into Sinhala.
-      - Do NOT produce broken mixes like "api can denna", "mama will thiyanawa".
-      - STRICTLY BANNED WORDS: machan, ela, patta, bro, boss, mate, dude. NEVER use these.
+      - Example of TOO LONG: "හරි, ඔයාට size 42 දෙන්න පුළුවන්! මොකක්ද ඔයාගේ interest එකක් — Nike Air force 1 ද, නැත්නම් Nike Air Jordon 1 ද? මොනවා pick කරන්නේ? Payment එක කරන්නේ Cash on Delivery (COD) ද නැතම් Bank Transfer එකක්ද?"
+      - Example of CORRECT LENGTH: "ඔව් size 42 තියනවා. මොන shoe එකද ඕන?"
+      - Keep it natural and warm like a real Sri Lankan shop person texting in Sinhala.
+      - Shop stock = "අපි ගාව ... තියනවා". Out of stock: "දැනට නෑ" + suggest alt.
+      - Never translate product names / sizes / Rs. amounts / English tech words (COD, Bank Transfer, delivery, size, photo) into Sinhala — keep those as-is. Mixing English words naturally inside Sinhala sentences is fine and normal.
+      - STRICTLY BANNED WORDS: machan, ela, patta, bro, boss, mate, dude, මචන්. NEVER use these.
       - DO NOT send unnecessary text if images/reviews are being sent. Let them speak for themselves.
       - DO NOT ask multiple questions in one message. Ask ONE thing, wait for reply.
       - DO NOT repeat info they already know. Be concise like a real person texting.
@@ -712,7 +717,7 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
       ${business.brand_voice || "Assist the customer politely with their inquiries."}
 
       COURIER / DELIVERY CHARGE RULE:
-      - If asked about courier/delivery/shipping cost, ALWAYS reply: "Courier charge ekk nah, Courier Free" (Singlish) or "No courier charge, delivery is free" (English) depending on their language.
+      - If asked about courier/delivery/shipping cost, ALWAYS reply: "Courier charge එකක් නෑ, delivery එක Free" (Sinhala) or "No courier charge, delivery is free" (English) depending on their language.
 
       INVENTORY:
       - Only offer items if Stock > 0. If 0, say Out of Stock and offer alternatives.
