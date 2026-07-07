@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
+import {
+  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
+} from "recharts";
 import { supabase } from "../../lib/supabaseClient";
 import { getActiveShopId } from "../../lib/activeShopId";
 import { normalizeOrderStatus } from "../../lib/orderStatus";
@@ -9,15 +13,29 @@ import { Card, CardContent } from "../../components/ui/card";
 import { StatCard } from "../../components/ui/stat-card";
 import { Skeleton } from "../../components/ui/skeleton";
 import {
-  IconBox,
-  IconCheck,
-  IconCustomers,
-  IconInfo,
-  IconOrders,
-  IconRevenue,
-  IconWarning,
+  IconBox, IconCheck, IconCustomers, IconInfo,
+  IconOrders, IconRevenue, IconWarning,
 } from "../../components/ui/icons";
-import { EmptyState } from "../../components/ui/empty-state";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type OrderRow = {
+  id: string;
+  customer_phone: string;
+  product_name: string;
+  total_price: number;
+  status: string;
+  created_at: string;
+  payment_method?: string;
+};
+
+type ProductRow = {
+  id: string;
+  name: string;
+  price: number;
+  stock_count: number;
+  category?: string;
+};
 
 type Metrics = {
   totalRevenue: number;
@@ -27,446 +45,560 @@ type Metrics = {
   totalCustomers: number;
   totalProducts: number;
   revenueTrend: "up" | "down" | "flat" | "unknown";
+  repeatCustomerRate: number;
+  avgOrderValue: number;
 };
 
+type DailyRevenue = { date: string; revenue: number; orders: number };
+type TopProduct = { name: string; count: number; revenue: number };
+type HeatmapCell = { day: string; hour: number; count: number };
+type AiInsight = { text: string; tone: "success" | "warning" | "info" | "prediction" };
+
+const COLORS = ["#6366f1", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#ec4899", "#64748b"];
+
 function formatMoney(amount: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "LKR",
-    maximumFractionDigits: 2,
-  }).format(amount);
+  return new Intl.NumberFormat(undefined, { style: "currency", currency: "LKR", maximumFractionDigits: 0 }).format(amount);
 }
 
-function DashboardSkeleton() {
-  return (
-    <div className="space-y-6 theme-section-glow">
-      <Card className="overflow-hidden">
-        <CardContent className="p-0">
-          <div className="grid gap-0 divide-y divide-gray-200/40 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-            {Array.from({ length: 3 }).map((_, idx) => (
-              <div key={idx} className="p-5">
-                <Skeleton className="h-3 w-24 rounded" />
-                <Skeleton className="mt-3 h-7 w-20 rounded" />
-                <Skeleton className="mt-3 h-2 w-32 rounded" />
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, idx) => (
-          <Card key={idx} className="overflow-hidden">
-            <CardContent className="relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-zinc-200/40 via-zinc-100/20 to-transparent" />
-              <div className="relative">
-                <Skeleton className="h-3 w-24 rounded" />
-                <Skeleton className="mt-3 h-8 w-32 rounded" />
-                <Skeleton className="mt-3 h-3 w-20 rounded" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      <Card>
-        <CardContent>
-          <Skeleton className="h-4 w-28 rounded" />
-          <div className="mt-4 space-y-2">
-            <Skeleton className="h-10 w-full rounded-xl" />
-            <Skeleton className="h-10 w-5/6 rounded-xl" />
-            <Skeleton className="h-10 w-4/6 rounded-xl" />
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+function getDayName(dayIndex: number): string {
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dayIndex] ?? "";
 }
 
-function insightTone(text: string): "warning" | "success" | "info" {
-  const t = text.toLowerCase();
-  if (t.includes("declin") || t.includes("pending") || t.includes("no sales"))
-    return "warning";
-  if (t.includes("positive")) return "success";
-  return "info";
+// ─── Helper: build daily revenue from orders ──────────────────────────────────
+function buildDailyRevenue(orders: OrderRow[], days: number): DailyRevenue[] {
+  const now = new Date();
+  const map = new Map<string, { revenue: number; orders: number }>();
+  
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    map.set(key, { revenue: 0, orders: 0 });
+  }
+
+  for (const o of orders) {
+    const key = new Date(o.created_at).toISOString().slice(0, 10);
+    if (map.has(key)) {
+      const entry = map.get(key)!;
+      entry.revenue += Number(o.total_price) || 0;
+      entry.orders += 1;
+    }
+  }
+
+  return Array.from(map.entries()).map(([date, data]) => ({
+    date: new Date(date).toLocaleDateString("en", { month: "short", day: "numeric" }),
+    ...data,
+  }));
 }
+
+// ─── Helper: top selling products ─────────────────────────────────────────────
+function buildTopProducts(orders: OrderRow[]): TopProduct[] {
+  const map = new Map<string, { count: number; revenue: number }>();
+  for (const o of orders) {
+    const name = o.product_name?.trim();
+    if (!name) continue;
+    const entry = map.get(name) ?? { count: 0, revenue: 0 };
+    entry.count += 1;
+    entry.revenue += Number(o.total_price) || 0;
+    map.set(name, entry);
+  }
+  return Array.from(map.entries())
+    .map(([name, data]) => ({ name: name.length > 20 ? name.slice(0, 20) + "…" : name, ...data }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+}
+
+// ─── Helper: order heatmap ────────────────────────────────────────────────────
+function buildHeatmap(orders: OrderRow[]): HeatmapCell[] {
+  const grid: Record<string, Record<number, number>> = {};
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  for (const day of days) {
+    grid[day] = {};
+    for (let h = 0; h < 24; h++) grid[day][h] = 0;
+  }
+  for (const o of orders) {
+    const d = new Date(o.created_at);
+    const day = days[d.getDay()];
+    const hour = d.getHours();
+    grid[day][hour] = (grid[day][hour] || 0) + 1;
+  }
+  const result: HeatmapCell[] = [];
+  for (const day of days) {
+    for (let h = 0; h < 24; h++) {
+      result.push({ day, hour: h, count: grid[day][h] });
+    }
+  }
+  return result;
+}
+
+// ─── Helper: predict next week revenue using simple linear trend ──────────────
+function predictRevenue(dailyData: DailyRevenue[]): { predicted: number; confidence: string } {
+  if (dailyData.length < 7) return { predicted: 0, confidence: "low" };
+  const last7 = dailyData.slice(-7);
+  const total = last7.reduce((s, d) => s + d.revenue, 0);
+  const avg = total / 7;
+  
+  // Simple trend: compare first half vs second half
+  const first = last7.slice(0, 3).reduce((s, d) => s + d.revenue, 0) / 3;
+  const second = last7.slice(4).reduce((s, d) => s + d.revenue, 0) / 3;
+  const trend = second > first ? 1.1 : second < first ? 0.9 : 1.0;
+  
+  const predicted = Math.round(avg * 7 * trend);
+  const confidence = dailyData.length >= 21 ? "high" : dailyData.length >= 14 ? "medium" : "low";
+  return { predicted, confidence };
+}
+
+// ─── Main Dashboard Component ─────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [products, setProducts] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [shopId, setShopId] = useState<string | null>(null);
+  const [aiInsights, setAiInsights] = useState<AiInsight[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [chartDays, setChartDays] = useState<7 | 30>(30);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       if (!supabase) {
-        setError(
-          "Missing env vars: NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY",
-        );
+        setError("Missing Supabase configuration");
         setLoading(false);
         return;
       }
 
-      const currentShopId = getActiveShopId();
-      if (!currentShopId) {
+      const shopId = getActiveShopId();
+      if (!shopId) {
         setError("No shop selected. Please login again.");
         setLoading(false);
         return;
       }
 
-      setShopId(currentShopId);
       setLoading(true);
       setError(null);
 
-      // Pull once and derive metrics.
-      // IMPORTANT: customers table may not exist, so we compute "total customers" from unique order phones.
+      // Fetch orders
       const ordersRes = await supabase
         .from("orders")
-        .select("id,customer_phone,total_price,status,created_at,product_name")
-        .eq("shop_id", currentShopId);
+        .select("id, customer_phone, product_name, total_price, status, created_at, payment_method")
+        .eq("shop_id", shopId)
+        .order("created_at", { ascending: false });
+
       if (ordersRes.error) {
-        if (!cancelled) {
-          setError(ordersRes.error.message);
-          setLoading(false);
-        }
+        if (!cancelled) { setError(ordersRes.error.message); setLoading(false); }
         return;
       }
 
-      const orders = ordersRes.data ?? [];
-      const totalRevenue = orders.reduce((sum, row) => {
-        const v = Number((row as { total_price: unknown }).total_price ?? 0);
-        return sum + (Number.isFinite(v) ? v : 0);
-      }, 0);
-      const activeOrders = orders.filter(
-        (row) => normalizeOrderStatus((row as { status: unknown }).status) === "pending",
-      ).length;
-      const completedOrders = orders.filter(
-        (row) => normalizeOrderStatus((row as { status: unknown }).status) === "delivered",
-      ).length;
-
-      // Total customers = unique phone numbers found in orders.
-      const totalCustomers = new Set(
-        orders
-          .map((row) => String((row as { customer_phone?: unknown }).customer_phone ?? "").trim())
-          .filter(Boolean),
-      ).size;
-
-      // Product counts still come from products table.
+      // Fetch products
       const productsRes = await supabase
         .from("products")
-        .select("id", { count: "exact", head: true })
-        .eq("shop_id", currentShopId);
+        .select("id, name, price, stock_count, category")
+        .eq("shop_id", shopId);
 
-      if (productsRes.error) {
-        if (!cancelled) {
-          setError(productsRes.error.message);
-          setLoading(false);
-        }
-        return;
+      const allOrders = (ordersRes.data ?? []) as unknown as OrderRow[];
+      const allProducts = (productsRes.data ?? []) as unknown as ProductRow[];
+
+      if (cancelled) return;
+      setOrders(allOrders);
+      setProducts(allProducts);
+
+      // Calculate metrics
+      const totalRevenue = allOrders.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0);
+      const activeOrders = allOrders.filter(o => normalizeOrderStatus(o.status) === "pending").length;
+      const completedOrders = allOrders.filter(o => normalizeOrderStatus(o.status) === "delivered").length;
+      
+      const phoneSet = new Set(allOrders.map(o => o.customer_phone?.trim()).filter(Boolean));
+      const totalCustomers = phoneSet.size;
+
+      // Repeat customer rate
+      const phoneCounts = new Map<string, number>();
+      for (const o of allOrders) {
+        const p = o.customer_phone?.trim();
+        if (p) phoneCounts.set(p, (phoneCounts.get(p) ?? 0) + 1);
       }
+      const repeatCustomers = Array.from(phoneCounts.values()).filter(c => c > 1).length;
+      const repeatCustomerRate = totalCustomers > 0 ? (repeatCustomers / totalCustomers) * 100 : 0;
 
-      // Simple revenue trend using recent orders (no external AI).
-      // Compare sum of latest 10 vs previous 10 using descending id.
-      const recent20 = await supabase
-        .from("orders")
-        .select("total_price,id")
-        .order("id", { ascending: false })
-        .limit(20)
-        .eq("shop_id", currentShopId);
-
+      // Revenue trend
+      const recent20 = allOrders.slice(0, 20);
       let revenueTrend: Metrics["revenueTrend"] = "unknown";
-      if (!recent20.error && recent20.data && recent20.data.length >= 6) {
-        const prices = recent20.data.map((r) => {
-          const v = Number((r as { total_price: unknown }).total_price ?? 0);
-          return Number.isFinite(v) ? v : 0;
-        });
+      if (recent20.length >= 6) {
+        const prices = recent20.map(r => Number(r.total_price) || 0);
         const half = Math.floor(prices.length / 2);
         const a = prices.slice(0, half).reduce((s, n) => s + n, 0);
         const b = prices.slice(half).reduce((s, n) => s + n, 0);
-        const delta = a - b;
-        if (Math.abs(delta) < 0.000001) revenueTrend = "flat";
-        else revenueTrend = delta > 0 ? "up" : "down";
+        revenueTrend = Math.abs(a - b) < 1 ? "flat" : a > b ? "up" : "down";
       }
-
-      if (cancelled) return;
 
       setMetrics({
         totalRevenue,
-        totalOrders: orders.length,
+        totalOrders: allOrders.length,
         activeOrders,
         completedOrders,
         totalCustomers,
-        totalProducts: productsRes.count ?? 0,
+        totalProducts: allProducts.length,
         revenueTrend,
+        repeatCustomerRate,
+        avgOrderValue: allOrders.length > 0 ? totalRevenue / allOrders.length : 0,
       });
       setLoading(false);
     }
 
     load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  const insights = useMemo(() => {
-    if (!metrics) return [];
-    const list: string[] = [];
+  // Fetch AI insights
+  const fetchAiInsights = useCallback(async () => {
+    if (orders.length === 0) return;
+    setInsightsLoading(true);
+    
+    const topProducts = buildTopProducts(orders);
+    const ordersSummary = `Total orders: ${orders.length}. Total revenue: Rs.${metrics?.totalRevenue?.toLocaleString() ?? 0}. Top products: ${topProducts.map(p => `${p.name} (${p.count} orders, Rs.${p.revenue.toLocaleString()})`).join(", ")}. Active orders: ${metrics?.activeOrders ?? 0}. Completed: ${metrics?.completedOrders ?? 0}. Repeat customer rate: ${metrics?.repeatCustomerRate?.toFixed(0) ?? 0}%.`;
+    const productsSummary = `${products.length} products. ${products.filter(p => p.stock_count === 0).length} out of stock. Categories: ${[...new Set(products.map(p => p.category).filter(Boolean))].join(", ") || "none"}.`;
 
-    if (metrics.totalRevenue <= 0) {
-      list.push("No sales yet — system needs activation");
+    try {
+      const res = await fetch("/api/dashboard-insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orders_summary: ordersSummary, products_summary: productsSummary }),
+      });
+      const data = await res.json();
+      const insights: AiInsight[] = (data.insights ?? []).map((text: string) => ({
+        text,
+        tone: text.toLowerCase().includes("declin") || text.toLowerCase().includes("out of stock") || text.toLowerCase().includes("risk")
+          ? "warning" as const
+          : text.toLowerCase().includes("predict") || text.toLowerCase().includes("forecast") || text.toLowerCase().includes("expect")
+            ? "prediction" as const
+            : text.toLowerCase().includes("growth") || text.toLowerCase().includes("increas") || text.toLowerCase().includes("strong")
+              ? "success" as const
+              : "info" as const,
+      }));
+      setAiInsights(insights);
+    } catch {
+      setAiInsights([{ text: "Unable to fetch AI insights.", tone: "info" }]);
     }
+    setInsightsLoading(false);
+  }, [orders, products, metrics]);
 
-    if (metrics.activeOrders > metrics.completedOrders) {
-      list.push("High pending order rate detected");
+  useEffect(() => {
+    if (!loading && orders.length > 0) {
+      void fetchAiInsights();
     }
+  }, [loading, fetchAiInsights]);
 
-    if (metrics.totalProducts > 0 && metrics.totalCustomers > 0) {
-      if (metrics.totalProducts < metrics.totalCustomers) {
-        list.push("Low product availability compared to customer base");
-      }
+  // Derived data for charts
+  const dailyRevenue = useMemo(() => buildDailyRevenue(orders, chartDays), [orders, chartDays]);
+  const topProducts = useMemo(() => buildTopProducts(orders), [orders]);
+  const heatmap = useMemo(() => buildHeatmap(orders), [orders]);
+  const prediction = useMemo(() => predictRevenue(dailyRevenue), [dailyRevenue]);
+  const heatmapMax = useMemo(() => Math.max(1, ...heatmap.map(h => h.count)), [heatmap]);
+
+  // Category breakdown for pie chart
+  const categoryData = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const o of orders) {
+      const cat = o.product_name?.split(" ")[0] ?? "Other";
+      map.set(cat, (map.get(cat) ?? 0) + (Number(o.total_price) || 0));
     }
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6);
+  }, [orders]);
 
-    if (metrics.revenueTrend === "up") {
-      list.push("Revenue trend is positive (recent orders)");
-    } else if (metrics.revenueTrend === "down") {
-      list.push("Revenue trend is declining (recent orders)");
-    } else if (metrics.revenueTrend === "flat") {
-      list.push("Revenue trend is flat (recent orders)");
-    }
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div><Skeleton className="h-9 w-64 rounded-lg" /><Skeleton className="mt-2 h-4 w-48 rounded" /></div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
+        </div>
+        <Skeleton className="h-72 rounded-2xl" />
+        <div className="grid lg:grid-cols-2 gap-4">
+          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
 
-    if (list.length === 0) list.push("No notable signals yet — keep monitoring.");
-    return list;
-  }, [metrics]);
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-red-200/60 bg-red-50/80 px-4 py-3 text-sm text-red-700 shadow-sm">
+        {error}
+      </div>
+    );
+  }
 
-  const completionRate = metrics
-    ? metrics.totalOrders > 0
-      ? (metrics.completedOrders / metrics.totalOrders) * 100
-      : 0
-    : 0;
-  const avgOrderValue = metrics
-    ? metrics.totalOrders > 0
-      ? metrics.totalRevenue / metrics.totalOrders
-      : 0
-    : 0;
-  const customerCoverage = metrics
-    ? metrics.totalCustomers > 0
-      ? Math.min(100, (metrics.totalProducts / metrics.totalCustomers) * 100)
-      : 0
-    : 0;
+  if (!metrics) return null;
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-[var(--color-text-primary)]">
-            Dashboard Overview
+          <h1 className="text-3xl font-bold tracking-tight" style={{ color: "var(--color-text-primary)" }}>
+            Dashboard
           </h1>
-          <p className="mt-1.5 text-sm text-[var(--color-text-secondary)]">
-            Welcome back, Admin. Here&apos;s today&apos;s business snapshot.
+          <p className="mt-1 text-sm" style={{ color: "var(--color-text-secondary)" }}>
+            AI-powered business analytics and predictions
           </p>
         </div>
-        <div className="hidden text-sm font-medium text-[var(--color-text-tertiary)] lg:block">
-          Live metrics powered by Supabase
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setChartDays(7)}
+            className={["px-3 py-1.5 rounded-lg text-xs font-medium transition-all", chartDays === 7 ? "bg-[var(--color-accent)] text-white" : "bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)]"].join(" ")}
+          >
+            7 days
+          </button>
+          <button
+            onClick={() => setChartDays(30)}
+            className={["px-3 py-1.5 rounded-lg text-xs font-medium transition-all", chartDays === 30 ? "bg-[var(--color-accent)] text-white" : "bg-[var(--color-surface-secondary)] text-[var(--color-text-secondary)]"].join(" ")}
+          >
+            30 days
+          </button>
         </div>
       </div>
 
-      {error && (
-        <div className="rounded-2xl border border-red-200/60 bg-red-50/80 px-4 py-3 text-sm text-red-700 shadow-sm">
-          {error}
-        </div>
-      )}
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <Link href="/reports" className="block">
+          <StatCard label="Total Revenue" value={formatMoney(metrics.totalRevenue)} hint={`Trend: ${metrics.revenueTrend}`} icon={<IconRevenue />} accent="violet" />
+        </Link>
+        <Link href="/orders" className="block">
+          <StatCard label="Orders" value={metrics.totalOrders} hint={`${metrics.activeOrders} pending`} icon={<IconOrders />} accent="amber" />
+        </Link>
+        <Link href="/customers" className="block">
+          <StatCard label="Customers" value={metrics.totalCustomers} hint={`${metrics.repeatCustomerRate.toFixed(0)}% repeat`} icon={<IconCustomers />} accent="sky" />
+        </Link>
+        <StatCard label="Avg Order" value={formatMoney(metrics.avgOrderValue)} hint={`${metrics.completedOrders} delivered`} icon={<IconCheck />} accent="emerald" />
+      </div>
 
-      {loading ? (
-        <DashboardSkeleton />
-      ) : !metrics ? (
-        <EmptyState
-          icon={<IconBox className="h-6 w-6" />}
-          title="No orders yet"
-          description="Orders from WhatsApp customers will appear here"
-          actionLabel="Create Test Order"
-          onAction={async () => {
-            const snippet = `-- Create a test order (adjust columns as needed)\ninsert into orders (customer_phone, product_name, total_price, status)\nvalues ('+10000000000', 'Test Product', 9.99, 'Pending');`;
-            await navigator.clipboard.writeText(snippet);
-          }}
-        />
-      ) : (
-        <>
-          <Card className="overflow-hidden">
-            <CardContent className="p-0">
-              <div className="grid gap-0 divide-y divide-gray-200/30 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                <div className="p-5">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                    Order Completion
-                  </div>
-                  <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--color-text-primary)]">
-                    {completionRate.toFixed(1)}%
-                  </div>
-                  <div className="mt-3 h-1.5 rounded-full bg-[var(--color-surface-hover)]">
-                    <div
-                      className="h-1.5 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-500"
-                      style={{ width: `${Math.max(6, Math.min(100, completionRate))}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="p-5">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                    Avg. Order Value
-                  </div>
-                  <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--color-text-primary)]">
-                    {formatMoney(avgOrderValue)}
-                  </div>
-                  <div className="mt-3 text-xs font-medium text-[var(--color-text-secondary)]">
-                    Based on {metrics.totalOrders} total orders
-                  </div>
-                </div>
-
-                <div className="p-5">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
-                    Product Coverage
-                  </div>
-                  <div className="mt-2 text-2xl font-bold tracking-tight text-[var(--color-text-primary)]">
-                    {customerCoverage.toFixed(0)}%
-                  </div>
-                  <div className="mt-3 h-1.5 rounded-full bg-[var(--color-surface-hover)]">
-                    <div
-                      className="h-1.5 rounded-full bg-gradient-to-r from-indigo-400 to-violet-500 transition-all duration-500"
-                      style={{ width: `${Math.max(6, Math.min(100, customerCoverage))}%` }}
-                    />
-                  </div>
-                </div>
+      {/* Revenue Chart + Prediction */}
+      <Card>
+        <CardContent>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Revenue Trend</h2>
+              <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>
+                Daily revenue over the last {chartDays} days
+              </p>
+            </div>
+            {prediction.predicted > 0 && (
+              <div className="text-right">
+                <div className="text-xs font-medium" style={{ color: "var(--color-text-tertiary)" }}>Next 7-day forecast</div>
+                <div className="text-lg font-bold" style={{ color: "var(--color-accent)" }}>{formatMoney(prediction.predicted)}</div>
+                <div className="text-[10px]" style={{ color: "var(--color-text-tertiary)" }}>Confidence: {prediction.confidence}</div>
               </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-            <Link href="/reports" className="block">
-              <StatCard
-                label="Total Revenue"
-                value={formatMoney(metrics.totalRevenue)}
-                hint={`Trend: ${metrics.revenueTrend}`}
-                icon={<IconRevenue />}
-                accent="violet"
-                className="cursor-pointer"
-              />
-            </Link>
-            <Link href="/orders" className="block">
-              <StatCard
-                label="Active Orders"
-                value={metrics.activeOrders}
-                hint="Pending"
-                icon={<IconOrders />}
-                accent="amber"
-                className="cursor-pointer"
-              />
-            </Link>
-            <Link href="/orders" className="block">
-              <StatCard
-                label="Completed Orders"
-                value={metrics.completedOrders}
-                hint="Delivered"
-                icon={<IconCheck />}
-                accent="emerald"
-                className="cursor-pointer"
-              />
-            </Link>
-            <Link href="/customers" className="block">
-              <StatCard
-                label="Total Customers"
-                value={metrics.totalCustomers}
-                hint="All time"
-                icon={<IconCustomers />}
-                accent="sky"
-                className="cursor-pointer"
-              />
-            </Link>
+            )}
           </div>
-
-          <div className="grid gap-4 xl:grid-cols-3">
-            <Card className="xl:col-span-2">
-              <CardContent>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-sm font-semibold text-[var(--color-text-primary)]">
-                      AI Insights
-                    </div>
-                    <div className="mt-1 text-sm text-[var(--color-text-secondary)]">
-                      Signals and suggestions based on recent data.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-2">
-                  {insights.map((text, idx) => {
-                    const tone = insightTone(text);
-                    const toneStyles =
-                      tone === "warning"
-                        ? "bg-amber-50/80 text-amber-800 ring-amber-200/50 shadow-sm shadow-amber-100/30"
-                        : tone === "success"
-                          ? "bg-emerald-50/80 text-emerald-800 ring-emerald-200/50 shadow-sm shadow-emerald-100/30"
-                          : "bg-sky-50/80 text-sky-800 ring-sky-200/50 shadow-sm shadow-sky-100/30";
-                    const Icon =
-                      tone === "warning"
-                        ? IconWarning
-                        : tone === "success"
-                          ? IconCheck
-                          : IconInfo;
-
-                    return (
-                      <div
-                        key={idx}
-                      className={`flex items-start gap-3 rounded-xl px-4 py-3 text-sm ring-1 ring-inset transition-all duration-200 hover:shadow-sm ${toneStyles}`}
-                      >
-                        <div className="mt-0.5">
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <div className="leading-5">{text}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent>
-                <div className="text-sm font-semibold text-[var(--color-text-primary)]">KPI Summary</div>
-                <div className="mt-1 text-sm text-[var(--color-text-secondary)]">
-                  Quick operational health indicators.
-                </div>
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-xl bg-gradient-to-r from-[var(--color-accent-light)] to-transparent px-4 py-3 ring-1 ring-inset ring-[var(--color-border-card)]">
-                    <div className="text-[11px] uppercase tracking-wider text-[var(--color-text-secondary)]">
-                      Total Orders
-                    </div>
-                    <div className="mt-1 text-lg font-bold text-[var(--color-text-primary)]">
-                      {metrics.totalOrders}
-                    </div>
-                  </div>
-                  <div className="rounded-xl bg-gradient-to-r from-[var(--color-warning-light)] to-transparent px-4 py-3 ring-1 ring-inset ring-[var(--color-border-card)]">
-                    <div className="text-[11px] uppercase tracking-wider text-[var(--color-text-secondary)]">
-                      Pending Queue
-                    </div>
-                    <div className="mt-1 text-lg font-bold text-amber-700">
-                      {metrics.activeOrders}
-                    </div>
-                  </div>
-                  <div className="rounded-xl bg-gradient-to-r from-[var(--color-success-light)] to-transparent px-4 py-3 ring-1 ring-inset ring-[var(--color-border-card)]">
-                    <div className="text-[11px] uppercase tracking-wider text-[var(--color-text-secondary)]">
-                      Delivered Queue
-                    </div>
-                    <div className="mt-1 text-lg font-bold text-emerald-700">
-                      {metrics.completedOrders}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="h-56 md:h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dailyRevenue} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--color-accent)" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="var(--color-accent)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--color-text-tertiary)" }} />
+                <YAxis tick={{ fontSize: 11, fill: "var(--color-text-tertiary)" }} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                <Tooltip
+                  contentStyle={{ background: "var(--color-surface-solid)", border: "1px solid var(--color-border-card)", borderRadius: 12, fontSize: 12 }}
+                  formatter={(value: number) => [formatMoney(value), "Revenue"]}
+                />
+                <Area type="monotone" dataKey="revenue" stroke="var(--color-accent)" strokeWidth={2} fill="url(#revenueGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-        </>
-      )}
+        </CardContent>
+      </Card>
+
+      {/* Top Products + Category Breakdown */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Top Products Bar Chart */}
+        <Card>
+          <CardContent>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Top Selling Products</h2>
+            <p className="text-xs mt-0.5 mb-4" style={{ color: "var(--color-text-tertiary)" }}>By order count</p>
+            {topProducts.length === 0 ? (
+              <div className="h-48 flex items-center justify-center text-sm" style={{ color: "var(--color-text-tertiary)" }}>No order data yet</div>
+            ) : (
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topProducts} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 11, fill: "var(--color-text-tertiary)" }} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "var(--color-text-secondary)" }} width={100} />
+                    <Tooltip
+                      contentStyle={{ background: "var(--color-surface-solid)", border: "1px solid var(--color-border-card)", borderRadius: 12, fontSize: 12 }}
+                      formatter={(value: number, name: string) => [name === "count" ? `${value} orders` : formatMoney(value), name === "count" ? "Orders" : "Revenue"]}
+                    />
+                    <Bar dataKey="count" fill="var(--color-accent)" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Revenue by Category Pie */}
+        <Card>
+          <CardContent>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Revenue by Product</h2>
+            <p className="text-xs mt-0.5 mb-4" style={{ color: "var(--color-text-tertiary)" }}>Revenue distribution</p>
+            {categoryData.length === 0 ? (
+              <div className="h-48 flex items-center justify-center text-sm" style={{ color: "var(--color-text-tertiary)" }}>No data</div>
+            ) : (
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={categoryData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
+                      {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ background: "var(--color-surface-solid)", border: "1px solid var(--color-border-card)", borderRadius: 12, fontSize: 12 }} formatter={(value: number) => formatMoney(value)} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Order Heatmap + AI Insights */}
+      <div className="grid gap-4 lg:grid-cols-5">
+        {/* Heatmap */}
+        <Card className="lg:col-span-3">
+          <CardContent>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>Order Activity Heatmap</h2>
+            <p className="text-xs mt-0.5 mb-4" style={{ color: "var(--color-text-tertiary)" }}>When your customers order most</p>
+            <div className="overflow-x-auto">
+              <div className="min-w-[500px]">
+                <div className="flex gap-0.5 mb-1">
+                  <div className="w-10 shrink-0" />
+                  {[0, 3, 6, 9, 12, 15, 18, 21].map(h => (
+                    <div key={h} className="flex-1 text-[9px] text-center" style={{ color: "var(--color-text-tertiary)" }}>
+                      {h === 0 ? "12am" : h === 12 ? "12pm" : h < 12 ? `${h}am` : `${h-12}pm`}
+                    </div>
+                  ))}
+                </div>
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(day => (
+                  <div key={day} className="flex gap-0.5 mb-0.5">
+                    <div className="w-10 shrink-0 text-[10px] font-medium flex items-center" style={{ color: "var(--color-text-tertiary)" }}>{day}</div>
+                    {Array.from({ length: 24 }).map((_, h) => {
+                      const cell = heatmap.find(c => c.day === day && c.hour === h);
+                      const intensity = cell ? cell.count / heatmapMax : 0;
+                      return (
+                        <div
+                          key={h}
+                          className="flex-1 h-5 rounded-sm transition-colors"
+                          style={{
+                            background: intensity === 0
+                              ? "var(--color-surface-secondary)"
+                              : `color-mix(in srgb, var(--color-accent) ${Math.round(intensity * 100)}%, var(--color-surface-secondary))`,
+                          }}
+                          title={`${day} ${h}:00 — ${cell?.count ?? 0} orders`}
+                        />
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* AI Insights */}
+        <Card className="lg:col-span-2">
+          <CardContent>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>🧠 AI Insights</h2>
+                <p className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>Powered by GPT-4</p>
+              </div>
+              <button
+                onClick={() => void fetchAiInsights()}
+                disabled={insightsLoading}
+                className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50"
+                style={{ color: "var(--color-accent)", background: "var(--color-accent-light)" }}
+              >
+                {insightsLoading ? "Analyzing…" : "↻ Refresh"}
+              </button>
+            </div>
+            <div className="space-y-2">
+              {insightsLoading ? (
+                Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-xl" />)
+              ) : aiInsights.length === 0 ? (
+                <div className="text-xs py-8 text-center" style={{ color: "var(--color-text-tertiary)" }}>Send some orders to get AI insights</div>
+              ) : (
+                aiInsights.map((insight, idx) => {
+                  const toneColor = insight.tone === "warning" ? "var(--color-warning)" : insight.tone === "success" ? "var(--color-success)" : insight.tone === "prediction" ? "var(--color-accent)" : "var(--color-text-secondary)";
+                  return (
+                    <div
+                      key={idx}
+                      className="rounded-xl px-3 py-2.5 text-[12px] leading-relaxed border"
+                      style={{ borderColor: "var(--color-border-card)", background: "var(--color-surface-secondary)", color: "var(--color-text-primary)" }}
+                    >
+                      <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ background: toneColor }} />
+                      {insight.text}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Stats Row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="py-4">
+            <div className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--color-text-tertiary)" }}>Completion Rate</div>
+            <div className="mt-1 text-xl font-bold" style={{ color: "var(--color-text-primary)" }}>
+              {metrics.totalOrders > 0 ? ((metrics.completedOrders / metrics.totalOrders) * 100).toFixed(0) : 0}%
+            </div>
+            <div className="mt-2 h-1.5 rounded-full" style={{ background: "var(--color-surface-secondary)" }}>
+              <div className="h-1.5 rounded-full bg-emerald-500 transition-all" style={{ width: `${metrics.totalOrders > 0 ? (metrics.completedOrders / metrics.totalOrders) * 100 : 0}%` }} />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4">
+            <div className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--color-text-tertiary)" }}>Repeat Customers</div>
+            <div className="mt-1 text-xl font-bold" style={{ color: "var(--color-text-primary)" }}>{metrics.repeatCustomerRate.toFixed(0)}%</div>
+            <div className="mt-2 h-1.5 rounded-full" style={{ background: "var(--color-surface-secondary)" }}>
+              <div className="h-1.5 rounded-full bg-indigo-500 transition-all" style={{ width: `${metrics.repeatCustomerRate}%` }} />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4">
+            <div className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--color-text-tertiary)" }}>Products Listed</div>
+            <div className="mt-1 text-xl font-bold" style={{ color: "var(--color-text-primary)" }}>{metrics.totalProducts}</div>
+            <div className="mt-2 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+              {products.filter(p => p.stock_count === 0).length} out of stock
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4">
+            <div className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--color-text-tertiary)" }}>Revenue Forecast</div>
+            <div className="mt-1 text-xl font-bold" style={{ color: "var(--color-accent)" }}>
+              {prediction.predicted > 0 ? formatMoney(prediction.predicted) : "—"}
+            </div>
+            <div className="mt-2 text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+              Next 7 days ({prediction.confidence})
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
-
