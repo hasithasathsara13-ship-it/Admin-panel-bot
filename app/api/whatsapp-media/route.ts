@@ -103,6 +103,35 @@ export async function GET(req: NextRequest) {
     const ct = rawCt.toLowerCase().includes("audio")
       ? normalizeWhatsAppAudioContentType(rawCt)
       : rawCt;
+
+    // Transcode OGG/Opus to MP4/AAC for iOS compatibility
+    if (ct === "audio/ogg" || ct === "audio/opus" || ct === "audio/ogg; codecs=opus") {
+      const oggBuffer = Buffer.from(await new Response(bin.body).arrayBuffer());
+      try {
+        const { encodeAudioBufferForWhatsAppM4a } = await import("@/lib/convertWebmForWhatsApp");
+        const { buffer: m4aBuffer } = await encodeAudioBufferForWhatsAppM4a(oggBuffer, "ogg");
+        return new NextResponse(m4aBuffer, {
+          status: 200,
+          headers: {
+            "Content-Type": "audio/mp4",
+            "Cache-Control": "private, max-age=300",
+            "Accept-Ranges": "bytes",
+          },
+        });
+      } catch (convErr) {
+        console.warn("[whatsapp-media] OGG→M4A transcode failed, serving raw:", convErr);
+        // Serve the raw OGG buffer we already read
+        return new NextResponse(oggBuffer, {
+          status: 200,
+          headers: {
+            "Content-Type": ct,
+            "Cache-Control": "private, max-age=300",
+            "Accept-Ranges": "bytes",
+          },
+        });
+      }
+    }
+
     return new NextResponse(bin.body, {
       status: 200,
       headers: {
