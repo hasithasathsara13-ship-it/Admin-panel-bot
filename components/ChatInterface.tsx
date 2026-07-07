@@ -98,6 +98,8 @@ interface Conversation {
   lastMessage: string;
   isoTimestamp: string;
   unread: number;
+  /** role of the last message — "user" = customer (inbound), else outbound (us/AI). */
+  lastRole?: string;
 }
 
 /** Latest DB timestamp in the thread (ignores optimistic temp ids). */
@@ -923,6 +925,22 @@ function formatVoiceTime(s: number): string {
 // ConversationRow
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Pick an avatar gradient deterministically from the phone so each contact keeps a stable color. */
+const AVATAR_GRADIENTS = [
+  "from-[#25D366] to-[#128C7E]",
+  "from-indigo-400 to-violet-500",
+  "from-rose-400 to-pink-600",
+  "from-amber-400 to-orange-500",
+  "from-sky-400 to-blue-600",
+  "from-teal-400 to-emerald-600",
+  "from-fuchsia-400 to-purple-600",
+];
+function avatarGradientFor(phone: string): string {
+  let hash = 0;
+  for (let i = 0; i < phone.length; i++) hash = (hash * 31 + phone.charCodeAt(i)) >>> 0;
+  return AVATAR_GRADIENTS[hash % AVATAR_GRADIENTS.length];
+}
+
 function ConversationRow({
   conv,
   isActive,
@@ -936,44 +954,66 @@ function ConversationRow({
 }) {
   const initials = phoneInitials(conv.phone);
   const relTime = fmtTime(conv.isoTimestamp);
+  const preview = formatMessageListPreview(conv.lastMessage);
+  // Outbound = message we (shop/AI) sent; show read-receipt ticks like WhatsApp.
+  const isOutbound = conv.lastRole !== "" && conv.lastRole !== "user" && conv.lastRole != null;
+  const hasUnread = conv.unread > 0;
 
   return (
     <button
       type="button"
       onClick={onClick}
       className={[
-        "w-full text-left px-4 py-3.5 flex items-center gap-3.5 transition-all duration-150 border-b border-[var(--color-border-light)]",
+        "w-full text-left px-3 md:px-4 py-3 flex items-center gap-3 transition-all duration-150 active:bg-[var(--color-surface-secondary)]",
         isActive ? "bg-[var(--color-accent-light)]" : "hover:bg-[var(--color-surface-hover)]",
       ].join(" ")}
     >
       <div className="relative flex-shrink-0">
         <div
           className={[
-            "w-[50px] h-[50px] rounded-full flex items-center justify-center text-sm font-semibold text-white",
+            "w-[52px] h-[52px] rounded-full flex items-center justify-center text-[15px] font-semibold text-white bg-gradient-to-br",
             isActive
-              ? "bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-dark)]"
-              : "bg-gradient-to-br from-indigo-400 to-violet-500",
+              ? "from-[var(--color-accent)] to-[var(--color-accent-dark)]"
+              : avatarGradientFor(conv.phone),
           ].join(" ")}
         >
           {initials}
         </div>
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex justify-between items-baseline gap-2 mb-1">
-          <span className={["text-[15px] truncate", conv.unread > 0 ? "font-bold text-[var(--color-text-primary)]" : "font-semibold text-[var(--color-text-primary)]"].join(" ")}>
+      <div className="flex-1 min-w-0 border-b border-[var(--color-border-light)] pb-3 -mb-3 self-stretch flex flex-col justify-center">
+        <div className="flex justify-between items-baseline gap-2 mb-0.5">
+          <span
+            className={[
+              "text-[16px] truncate leading-tight",
+              hasUnread ? "font-bold text-[var(--color-text-primary)]" : "font-semibold text-[var(--color-text-primary)]",
+            ].join(" ")}
+          >
             {displayLabel}
           </span>
-          <span className={["text-[12px] whitespace-nowrap flex-shrink-0", conv.unread > 0 ? "text-[#25D366] font-semibold" : "text-[var(--color-text-tertiary)]"].join(" ")}>
+          <span
+            className={[
+              "text-[12px] whitespace-nowrap flex-shrink-0",
+              hasUnread ? "text-[#25D366] font-semibold" : "text-[var(--color-text-tertiary)]",
+            ].join(" ")}
+          >
             {relTime}
           </span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <p className={["text-[13px] truncate", conv.unread > 0 ? "text-[var(--color-text-primary)] font-medium" : "text-[var(--color-text-secondary)]"].join(" ")}>
-            {formatMessageListPreview(conv.lastMessage)}
+          <p
+            className={[
+              "flex items-center gap-1 text-[14px] truncate min-w-0",
+              hasUnread ? "text-[var(--color-text-primary)] font-medium" : "text-[var(--color-text-secondary)]",
+            ].join(" ")}
+          >
+            {isOutbound && (
+              <CheckCheck className="w-4 h-4 flex-shrink-0 text-[#53bdeb]" />
+            )}
+            <span className="truncate">{preview}</span>
           </p>
-          {conv.unread > 0 && (
-            <span className="flex-shrink-0 min-w-[20px] h-[20px] px-1.5 rounded-full bg-[#25D366] text-white text-[11px] font-bold flex items-center justify-center">
+          {hasUnread && (
+            <span className="flex-shrink-0 min-w-[22px] h-[22px] px-1.5 rounded-full bg-[#25D366] text-white text-[12px] font-bold flex items-center justify-center leading-none">
               {conv.unread}
             </span>
           )}
@@ -1297,6 +1337,7 @@ export function ChatInterface() {
           lastMessage: String(row.content ?? ""),
           isoTimestamp: String(row.created_at ?? ""),
           unread: 0,
+          lastRole: String(row.role ?? ""),
         });
       }
 
@@ -1558,6 +1599,7 @@ export function ChatInterface() {
               lastMessage: String(row.content ?? ""),
               isoTimestamp: String(row.created_at ?? ""),
               unread: phone === openPhone ? 0 : (existing?.unread ?? 0) + 1,
+              lastRole: String(row.role ?? ""),
             };
             const others = prev.filter((c) => c.phone !== phone);
             return [updated, ...others];
@@ -1843,7 +1885,7 @@ export function ChatInterface() {
     setConversations((prev) => {
       const others = prev.filter((c) => c.phone !== activePhone);
       return [
-        { phone: activePhone, lastMessage: text, isoTimestamp: realIso, unread: 0 },
+        { phone: activePhone, lastMessage: text, isoTimestamp: realIso, unread: 0, lastRole: "model" },
         ...others,
       ];
     });
@@ -2352,10 +2394,10 @@ export function ChatInterface() {
         ].join(" ")}
         style={{ width: isMobileChatOpen ? undefined : `min(100%, ${panelWidth}%)`, minWidth: isMobileChatOpen ? undefined : "200px", maxWidth: "50%" }}
       >
-        {/* Header */}
-        <div className="px-5 py-4 md:py-4 flex items-center justify-between shrink-0 border-b border-[var(--color-border)]">
+        {/* Header — WhatsApp style: large bold title on mobile */}
+        <div className="px-4 pt-3 pb-1.5 md:py-4 md:px-5 flex items-center justify-between shrink-0">
           <div>
-            <h1 className="font-bold text-[22px] md:text-[17px] text-[var(--color-text-primary)] tracking-tight">Chats</h1>
+            <h1 className="font-extrabold text-[28px] md:text-[17px] md:font-bold text-[var(--color-text-primary)] tracking-tight leading-none">Chats</h1>
             <p className="text-[11px] text-[var(--color-text-tertiary)] mt-0.5 hidden md:block">
               {convsLoading ? "Loading…" : `${filteredConvs.length} chat${filteredConvs.length === 1 ? "" : "s"}`}
             </p>
@@ -2365,9 +2407,10 @@ export function ChatInterface() {
               type="button"
               onClick={() => setNewChatOpen(true)}
               title="New Chat"
-              className="p-2 rounded-xl hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-colors"
+              className="flex items-center justify-center w-9 h-9 md:w-auto md:h-auto md:p-2 rounded-full md:rounded-xl bg-[#25D366] md:bg-transparent text-white md:text-[var(--color-text-tertiary)] hover:opacity-90 md:hover:bg-[var(--color-surface-secondary)] md:hover:text-[var(--color-accent)] transition-colors"
             >
-              <UserPlus className="w-4 h-4" />
+              <Plus className="w-5 h-5 md:hidden" />
+              <UserPlus className="w-4 h-4 hidden md:block" />
             </button>
             <button
               type="button"
@@ -2375,21 +2418,21 @@ export function ChatInterface() {
               title="Refresh"
               className="p-2 rounded-xl hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors"
             >
-              <RefreshCw className={["w-4 h-4", convsLoading ? "animate-spin" : ""].join(" ")} />
+              <RefreshCw className={["w-5 h-5 md:w-4 md:h-4", convsLoading ? "animate-spin" : ""].join(" ")} />
             </button>
           </div>
         </div>
 
         {/* Search */}
-        <div className="px-4 py-3 border-b border-[var(--color-border)] shrink-0">
+        <div className="px-3 py-2 md:px-4 md:py-3 shrink-0">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search conversations…"
-              className="w-full bg-[var(--color-surface-secondary)] rounded-xl pl-9 pr-4 py-2 text-[13px] border border-transparent focus:border-[var(--color-accent)] focus:ring-0 transition-colors"
+              placeholder="Search"
+              className="w-full bg-[var(--color-surface-secondary)] rounded-full md:rounded-xl pl-10 pr-4 py-2.5 md:py-2 text-[14px] md:text-[13px] border border-transparent focus:border-[var(--color-accent)] focus:ring-0 transition-colors"
             />
           </div>
         </div>
