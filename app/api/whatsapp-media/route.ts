@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
       try {
         const { encodeAudioBufferForWhatsAppM4a } = await import("@/lib/convertWebmForWhatsApp");
         const { buffer: m4aBuffer } = await encodeAudioBufferForWhatsAppM4a(oggBuffer, "ogg");
-        return new NextResponse(m4aBuffer, {
+        return new NextResponse(new Uint8Array(m4aBuffer), {
           status: 200,
           headers: {
             "Content-Type": "audio/mp4",
@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
       } catch (convErr) {
         console.warn("[whatsapp-media] OGG→M4A transcode failed, serving raw:", convErr);
         // Serve the raw OGG buffer we already read
-        return new NextResponse(oggBuffer, {
+        return new NextResponse(new Uint8Array(oggBuffer), {
           status: 200,
           headers: {
             "Content-Type": ct,
