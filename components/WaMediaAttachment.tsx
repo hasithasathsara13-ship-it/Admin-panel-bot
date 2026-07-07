@@ -39,14 +39,70 @@ function bubbleAudioWrap(isAI: boolean, children: ReactNode) {
 
 function WaAudioPlayer({ src, isAI }: { src: string; isAI: boolean }) {
   const [failed, setFailed] = useState(false);
+  const [iosSrc, setIosSrc] = useState<string | null>(null);
+  const [decoding, setDecoding] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
     if (typeof navigator !== "undefined") {
       const ua = navigator.userAgent;
-      setIsIOS(/iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+      const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      setIsIOS(ios);
+      if (ios) {
+        // On iOS, decode OGG/Opus client-side and create a WAV blob URL
+        void decodeForIOS(src);
+      }
     }
-  }, []);
+  }, [src]);
+
+  async function decodeForIOS(audioSrc: string) {
+    setDecoding(true);
+    try {
+      const res = await fetch(audioSrc);
+      if (!res.ok) { setFailed(true); setDecoding(false); return; }
+      const contentType = res.headers.get("content-type") || "";
+      
+      // If server already transcoded to mp4/aac, use it directly
+      if (contentType.includes("mp4") || contentType.includes("aac") || contentType.includes("mpeg")) {
+        const blob = await res.blob();
+        setIosSrc(URL.createObjectURL(blob));
+        setDecoding(false);
+        return;
+      }
+
+      // Try decoding OGG/Opus using ogg-opus-decoder
+      const arrayBuf = await res.arrayBuffer();
+      try {
+        const { OggOpusDecoder } = await import("ogg-opus-decoder");
+        const decoder = new OggOpusDecoder();
+        await decoder.ready;
+        const decoded = await decoder.decode(new Uint8Array(arrayBuf));
+        
+        // Convert decoded PCM to WAV blob
+        const wavBlob = pcmToWavBlob(decoded.channelData, decoded.sampleRate);
+        setIosSrc(URL.createObjectURL(wavBlob));
+        decoder.free();
+      } catch {
+        // If opus decoder fails, try Web Audio API decodeAudioData as last resort
+        try {
+          const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+          const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+          const channels: Float32Array[] = [];
+          for (let i = 0; i < audioBuf.numberOfChannels; i++) {
+            channels.push(audioBuf.getChannelData(i));
+          }
+          const wavBlob = pcmToWavBlob(channels, audioBuf.sampleRate);
+          setIosSrc(URL.createObjectURL(wavBlob));
+          await audioCtx.close();
+        } catch {
+          setFailed(true);
+        }
+      }
+    } catch {
+      setFailed(true);
+    }
+    setDecoding(false);
+  }
 
   if (failed) {
     return (
@@ -69,18 +125,72 @@ function WaAudioPlayer({ src, isAI }: { src: string; isAI: boolean }) {
     );
   }
 
+  if (isIOS && decoding) {
+    return bubbleAudioWrap(
+      isAI,
+      <div className="flex items-center gap-2 py-1">
+        <Loader2 className="w-4 h-4 animate-spin opacity-60" />
+        <span className="text-[12px] opacity-70">Loading voice…</span>
+      </div>,
+    );
+  }
+
   return bubbleAudioWrap(
     isAI,
     <audio
       controls
       preload={isIOS ? "auto" : "metadata"}
-      src={src}
-      onError={() => setFailed(true)}
+      src={iosSrc ?? src}
+      onError={() => { if (!isIOS) setFailed(true); }}
       className="h-9 min-w-0 flex-1"
       style={{ colorScheme: isAI ? "dark" : "light" }}
       playsInline
     />,
   );
+}
+
+/** Convert decoded PCM Float32Array channels to a WAV Blob. */
+function pcmToWavBlob(channels: Float32Array[], sampleRate: number): Blob {
+  const numChannels = channels.length;
+  const length = channels[0].length;
+  const interleaved = new Float32Array(length * numChannels);
+  
+  for (let i = 0; i < length; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      interleaved[i * numChannels + ch] = channels[ch][i];
+    }
+  }
+  
+  const buffer = new ArrayBuffer(44 + interleaved.length * 2);
+  const view = new DataView(buffer);
+  
+  // WAV header
+  const writeStr = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + interleaved.length * 2, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numChannels * 2, true);
+  view.setUint16(32, numChannels * 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, "data");
+  view.setUint32(40, interleaved.length * 2, true);
+  
+  // PCM samples
+  let offset = 44;
+  for (let i = 0; i < interleaved.length; i++) {
+    const s = Math.max(-1, Math.min(1, interleaved[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    offset += 2;
+  }
+  
+  return new Blob([buffer], { type: "audio/wav" });
 }
 
 function TryImageThenAudio({ src, isAI }: { src: string; isAI: boolean }) {
