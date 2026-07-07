@@ -942,14 +942,14 @@ function ConversationRow({
       type="button"
       onClick={onClick}
       className={[
-        "w-full text-left px-4 py-3 flex items-start gap-3 transition-all duration-150 border-b border-[var(--color-border-light)]",
+        "w-full text-left px-4 py-3.5 flex items-center gap-3.5 transition-all duration-150 border-b border-[var(--color-border-light)]",
         isActive ? "bg-[var(--color-accent-light)]" : "hover:bg-[var(--color-surface-hover)]",
       ].join(" ")}
     >
       <div className="relative flex-shrink-0">
         <div
           className={[
-            "w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-white",
+            "w-[50px] h-[50px] rounded-full flex items-center justify-center text-sm font-semibold text-white",
             isActive
               ? "bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-dark)]"
               : "bg-gradient-to-br from-indigo-400 to-violet-500",
@@ -960,20 +960,20 @@ function ConversationRow({
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex justify-between items-baseline gap-1 mb-0.5">
-          <span className={["text-[13px] truncate", conv.unread > 0 ? "font-bold text-[var(--color-text-primary)]" : "font-semibold text-[var(--color-text-primary)]"].join(" ")}>
+        <div className="flex justify-between items-baseline gap-2 mb-1">
+          <span className={["text-[15px] truncate", conv.unread > 0 ? "font-bold text-[var(--color-text-primary)]" : "font-semibold text-[var(--color-text-primary)]"].join(" ")}>
             {displayLabel}
           </span>
-          <span className={["text-[11px] whitespace-nowrap flex-shrink-0", conv.unread > 0 ? "text-[var(--color-accent)] font-semibold" : "text-[var(--color-text-tertiary)]"].join(" ")}>
+          <span className={["text-[12px] whitespace-nowrap flex-shrink-0", conv.unread > 0 ? "text-[#25D366] font-semibold" : "text-[var(--color-text-tertiary)]"].join(" ")}>
             {relTime}
           </span>
         </div>
-        <div className="flex items-center justify-between gap-1">
-          <p className={["text-[12.5px] truncate", conv.unread > 0 ? "text-[var(--color-text-primary)] font-medium" : "text-[var(--color-text-secondary)]"].join(" ")}>
+        <div className="flex items-center justify-between gap-2">
+          <p className={["text-[13px] truncate", conv.unread > 0 ? "text-[var(--color-text-primary)] font-medium" : "text-[var(--color-text-secondary)]"].join(" ")}>
             {formatMessageListPreview(conv.lastMessage)}
           </p>
           {conv.unread > 0 && (
-            <span className="flex-shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-[#25D366] text-white text-[10px] font-bold flex items-center justify-center">
+            <span className="flex-shrink-0 min-w-[20px] h-[20px] px-1.5 rounded-full bg-[#25D366] text-white text-[11px] font-bold flex items-center justify-center">
               {conv.unread}
             </span>
           )}
@@ -2347,16 +2347,16 @@ export function ChatInterface() {
       {/* ── Conversation List ────────────────────────────────────────────── */}
       <div
         className={[
-          "flex min-h-0 min-w-0 flex-1 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface-solid)] md:flex-none md:flex",
+          "flex min-h-0 min-w-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface-solid)] md:flex-none md:flex",
           isMobileChatOpen ? "hidden md:flex" : "flex",
         ].join(" ")}
         style={{ width: `${panelWidth}%`, minWidth: "200px", maxWidth: "50%" }}
       >
         {/* Header */}
-        <div className="px-5 py-4 flex items-center justify-between shrink-0 border-b border-[var(--color-border)]">
+        <div className="px-5 py-4 md:py-4 flex items-center justify-between shrink-0 border-b border-[var(--color-border)]">
           <div>
-            <h1 className="font-bold text-[17px] text-[var(--color-text-primary)] tracking-tight">Chats</h1>
-            <p className="text-[11px] text-[var(--color-text-tertiary)] mt-0.5">
+            <h1 className="font-bold text-[22px] md:text-[17px] text-[var(--color-text-primary)] tracking-tight">Chats</h1>
+            <p className="text-[11px] text-[var(--color-text-tertiary)] mt-0.5 hidden md:block">
               {convsLoading ? "Loading…" : `${filteredConvs.length} chat${filteredConvs.length === 1 ? "" : "s"}`}
             </p>
           </div>

@@ -445,4 +445,9 @@ input[type="checkbox"] {
   :root[data-mobile-chat-open="true"] [data-main-content] {
     padding-bottom: 0 !important;
   }
+  /* Make the chat fill the full viewport height */
+  :root[data-mobile-chat-open="true"] main {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+  }
 }
