@@ -2908,7 +2908,7 @@ export function ChatInterface() {
                     placeholder={isPast24Hours ? "24h window closed. Use a template to reply." : "Type a message…"}
                     rows={1}
                     disabled={isPast24Hours}
-                    className={["max-h-32 w-full min-w-0 resize-none border-none bg-transparent px-4 py-3 text-[13.5px] leading-relaxed outline-none focus:border-transparent focus:shadow-none focus:ring-0", isPast24Hours ? "cursor-not-allowed placeholder:text-amber-600/70" : ""].join(" ")}
+                    className={["max-h-32 w-full min-w-0 resize-none border-none bg-transparent px-4 py-3 text-[16px] md:text-[13.5px] leading-relaxed outline-none focus:border-transparent focus:shadow-none focus:ring-0", isPast24Hours ? "cursor-not-allowed placeholder:text-amber-600/70" : ""].join(" ")}
                     style={{ boxShadow: "none" }}
                   />
                 </div>
