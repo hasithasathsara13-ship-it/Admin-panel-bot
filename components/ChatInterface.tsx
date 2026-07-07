@@ -942,14 +942,14 @@ function ConversationRow({
       type="button"
       onClick={onClick}
       className={[
-        "w-full text-left px-4 py-3.5 flex items-center gap-3.5 transition-all duration-150 border-b border-[var(--color-border-light)]",
+        "w-full text-left px-4 py-4 flex items-center gap-4 transition-all duration-150",
         isActive ? "bg-[var(--color-accent-light)]" : "hover:bg-[var(--color-surface-hover)]",
       ].join(" ")}
     >
       <div className="relative flex-shrink-0">
         <div
           className={[
-            "w-[50px] h-[50px] rounded-full flex items-center justify-center text-sm font-semibold text-white",
+            "w-[52px] h-[52px] rounded-full flex items-center justify-center text-[15px] font-semibold text-white",
             isActive
               ? "bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-dark)]"
               : "bg-gradient-to-br from-indigo-400 to-violet-500",
@@ -959,9 +959,9 @@ function ConversationRow({
         </div>
       </div>
 
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 border-b border-[var(--color-border-light)] pb-4">
         <div className="flex justify-between items-baseline gap-2 mb-1">
-          <span className={["text-[15px] truncate", conv.unread > 0 ? "font-bold text-[var(--color-text-primary)]" : "font-semibold text-[var(--color-text-primary)]"].join(" ")}>
+          <span className={["text-[16px] md:text-[14px] truncate", conv.unread > 0 ? "font-bold text-[var(--color-text-primary)]" : "font-semibold text-[var(--color-text-primary)]"].join(" ")}>
             {displayLabel}
           </span>
           <span className={["text-[12px] whitespace-nowrap flex-shrink-0", conv.unread > 0 ? "text-[#25D366] font-semibold" : "text-[var(--color-text-tertiary)]"].join(" ")}>
@@ -969,11 +969,11 @@ function ConversationRow({
           </span>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <p className={["text-[13px] truncate", conv.unread > 0 ? "text-[var(--color-text-primary)] font-medium" : "text-[var(--color-text-secondary)]"].join(" ")}>
+          <p className={["text-[14px] md:text-[13px] truncate", conv.unread > 0 ? "text-[var(--color-text-primary)] font-medium" : "text-[var(--color-text-tertiary)]"].join(" ")}>
             {formatMessageListPreview(conv.lastMessage)}
           </p>
           {conv.unread > 0 && (
-            <span className="flex-shrink-0 min-w-[20px] h-[20px] px-1.5 rounded-full bg-[#25D366] text-white text-[11px] font-bold flex items-center justify-center">
+            <span className="flex-shrink-0 min-w-[22px] h-[22px] px-1.5 rounded-full bg-[#25D366] text-white text-[11px] font-bold flex items-center justify-center">
               {conv.unread}
             </span>
           )}
@@ -2347,18 +2347,16 @@ export function ChatInterface() {
       {/* ── Conversation List ────────────────────────────────────────────── */}
       <div
         className={[
-          "flex h-full flex-col border-r border-[var(--color-border)] bg-[var(--color-surface-solid)] md:flex-none md:flex",
+          "flex h-full flex-col bg-[var(--color-surface-solid)] md:border-r md:border-[var(--color-border)] md:flex-none",
           isMobileChatOpen ? "hidden md:flex" : "flex w-full md:w-auto",
+          "max-w-full md:max-w-[50%]",
         ].join(" ")}
-        style={{ width: isMobileChatOpen ? undefined : `min(100%, ${panelWidth}%)`, minWidth: isMobileChatOpen ? undefined : "200px", maxWidth: "50%" }}
+        style={{ width: `${panelWidth}%`, minWidth: "200px" }}
       >
         {/* Header */}
-        <div className="px-5 py-4 md:py-4 flex items-center justify-between shrink-0 border-b border-[var(--color-border)]">
+        <div className="px-5 py-3 md:py-4 flex items-center justify-between shrink-0 md:border-b md:border-[var(--color-border)]">
           <div>
-            <h1 className="font-bold text-[22px] md:text-[17px] text-[var(--color-text-primary)] tracking-tight">Chats</h1>
-            <p className="text-[11px] text-[var(--color-text-tertiary)] mt-0.5 hidden md:block">
-              {convsLoading ? "Loading…" : `${filteredConvs.length} chat${filteredConvs.length === 1 ? "" : "s"}`}
-            </p>
+            <h1 className="font-bold text-[28px] md:text-[17px] text-[var(--color-text-primary)] tracking-tight">Chats</h1>
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -2381,15 +2379,15 @@ export function ChatInterface() {
         </div>
 
         {/* Search */}
-        <div className="px-4 py-3 border-b border-[var(--color-border)] shrink-0">
+        <div className="px-4 py-2 md:py-3 md:border-b md:border-[var(--color-border)] shrink-0">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 md:w-3.5 md:h-3.5 text-[var(--color-text-tertiary)]" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search conversations…"
-              className="w-full bg-[var(--color-surface-secondary)] rounded-xl pl-9 pr-4 py-2 text-[13px] border border-transparent focus:border-[var(--color-accent)] focus:ring-0 transition-colors"
+              className="w-full bg-[var(--color-surface-secondary)] rounded-xl pl-10 md:pl-9 pr-4 py-2.5 md:py-2 text-[16px] md:text-[13px] border border-transparent focus:border-[var(--color-accent)] focus:ring-0 transition-colors"
             />
           </div>
         </div>
