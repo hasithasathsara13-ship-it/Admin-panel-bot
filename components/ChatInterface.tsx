@@ -2654,7 +2654,7 @@ export function ChatInterface() {
             ) : null}
 
             {/* Input area */}
-            <div className="shrink-0 flex flex-col bg-[var(--color-surface-solid)] border-t border-[var(--color-border)] pb-[env(safe-area-inset-bottom)]">
+            <div className="shrink-0 flex flex-col bg-[var(--color-surface-solid)] border-t border-[var(--color-border)] pb-[max(12px,env(safe-area-inset-bottom))]">
               {/* 24h window closed banner */}
               {isPast24Hours && (
                 <div className="flex items-center gap-2 px-3 py-2 border-b border-amber-200/60 bg-amber-50/80">
