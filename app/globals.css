@@ -456,3 +456,18 @@ input[type="checkbox"] {
     height: 100% !important;
   }
 }
+
+/* ─── Chat Panel Responsive Width ──────────────────────────────────────────── */
+/* On mobile: full width. On desktop: use the resizable panel width variable. */
+[data-chat-panel] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+@media (min-width: 768px) {
+  [data-chat-panel] {
+    width: var(--panel-w, 30%);
+    min-width: 200px;
+    max-width: 50%;
+  }
+}

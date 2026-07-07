@@ -2346,12 +2346,12 @@ export function ChatInterface() {
 
       {/* ── Conversation List ────────────────────────────────────────────── */}
       <div
+        data-chat-panel
         className={[
           "flex h-full flex-col bg-[var(--color-surface-solid)] md:border-r md:border-[var(--color-border)] md:flex-none",
-          isMobileChatOpen ? "hidden md:flex" : "flex w-full md:w-auto",
-          "max-w-full md:max-w-[50%]",
+          isMobileChatOpen ? "hidden md:flex" : "flex",
         ].join(" ")}
-        style={{ width: `${panelWidth}%`, minWidth: "200px" }}
+        style={{ "--panel-w": `${panelWidth}%` } as React.CSSProperties}
       >
         {/* Header */}
         <div className="px-5 py-3 md:py-4 flex items-center justify-between shrink-0 md:border-b md:border-[var(--color-border)]">
