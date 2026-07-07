@@ -101,6 +101,7 @@
     .badge-whatsapp { background: rgba(37,211,102,0.2); color: #25d366; }
     .badge-admin { background: rgba(251,191,36,0.2); color: #fbbf24; }
     .badge-billing { background: rgba(244,63,94,0.2); color: #fb7185; }
+    .badge-new { background: rgba(6,182,212,0.2); color: #22d3ee; }
 
     .icon-chat { background: linear-gradient(135deg, #25d366, #128c7e); }
     .icon-broadcast { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
@@ -156,9 +157,19 @@
           <p>Send pre-approved Meta template messages to re-engage customers after the 24-hour window expires. Supports hello_world and custom templates.</p>
         </div>
         <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>Dynamic Meta Templates</h3>
+          <p>Fetches live templates from Meta Cloud API. Shows template name, language, and approval status. Auto-populates dropdown for sending.</p>
+        </div>
+        <div class="feature-card">
           <span class="badge badge-whatsapp">Core</span>
           <h3>Image Sending & Receiving</h3>
           <p>Send images to customers and view received images with hover-to-download functionality. Supports JPEG, PNG, and WebP.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>Send Image by URL</h3>
+          <p>Send product images or review screenshots to customers via direct URL without needing to re-upload. Used for reviews and catalog sharing.</p>
         </div>
         <div class="feature-card">
           <span class="badge badge-whatsapp">Core</span>
@@ -193,12 +204,57 @@
         <div class="feature-card">
           <span class="badge badge-whatsapp">Core</span>
           <h3>Bot Toggle (Human Handoff)</h3>
-          <p>Toggle AI bot on/off per conversation. Auto-re-enables after 20 minutes. Visual indicator shows bot status.</p>
+          <p>Toggle AI bot on/off per conversation. Auto-re-enables after 20 minutes. Visual indicator shows bot status in chat header.</p>
         </div>
         <div class="feature-card">
           <span class="badge badge-whatsapp">Core</span>
           <h3>Resizable Panel</h3>
           <p>Drag-to-resize the conversation list panel on desktop. Adjusts between 15% and 50% width for optimal workflow.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>Send Reviews via Chat</h3>
+          <p>One-click send all review screenshots and external review link to any customer directly from the + menu in the chat interface.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>Long-Press Context Menu</h3>
+          <p>Touch-friendly long-press or right-click context menu on messages for reply, edit, and delete actions. Works on mobile and desktop.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Template Management -->
+    <div class="section">
+      <div class="section-title">
+        <div class="icon icon-broadcast">📋</div>
+        <h2>Template Management</h2>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>View All Templates</h3>
+          <p>Dedicated page listing all Meta-approved message templates with status badges (Approved, Pending, Rejected), category, and language.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>Create Templates</h3>
+          <p>Create new message templates with header (text/image/video/document), body text with variables, footer, and CTA buttons directly from the dashboard.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>Delete Templates</h3>
+          <p>Remove templates from Meta via the dashboard. Confirmation dialog before deletion. Updates list in real-time.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>Template Preview</h3>
+          <p>Expandable cards showing full template components — header, body, footer, and buttons with formatting preserved.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>Multi-Language Support</h3>
+          <p>Create templates in multiple languages (English, Sinhala, Tamil). Language selector in creation form.</p>
         </div>
       </div>
     </div>
@@ -228,7 +284,7 @@
         <div class="feature-card">
           <span class="badge badge-core">Feature</span>
           <h3>Template Broadcast</h3>
-          <p>Send pre-approved template messages to multiple contacts at once. Works outside the 24-hour window for maximum reach.</p>
+          <p>Send pre-approved template messages to multiple contacts at once. Now fetches live templates from Meta API with approval status.</p>
         </div>
         <div class="feature-card">
           <span class="badge badge-core">Feature</span>
@@ -346,9 +402,24 @@
           <p>View all businesses, change plans/cycles, mark paid, set subscription status, manage brand voice per workspace.</p>
         </div>
         <div class="feature-card">
-          <span class="badge badge-admin">Admin</span>
-          <h3>Create Businesses</h3>
-          <p>Add new business workspaces from the admin panel with name, email, WhatsApp number, category, and brand voice.</p>
+          <span class="badge badge-new">New</span>
+          <h3>Business Detail Page</h3>
+          <p>Dedicated page per business with full details: Meta credentials, WABA ID, brand voice, billing history, usage stats, and inline editing.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>Add Business (Full Form)</h3>
+          <p>Dedicated add-business page with all fields: name, email, WhatsApp number, category, brand voice, Meta Phone ID, API token, and WABA ID.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>Billing Overview Page</h3>
+          <p>Dedicated billing dashboard showing all businesses with payment status, days until next due, MRR totals, overdue accounts, and quick mark-paid actions.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>WABA ID Management</h3>
+          <p>Per-business WhatsApp Business Account ID configuration. Enables multi-tenant template and media management via Meta Graph API.</p>
         </div>
         <div class="feature-card">
           <span class="badge badge-admin">Admin</span>
@@ -359,6 +430,11 @@
           <span class="badge badge-admin">Admin</span>
           <h3>Secure Cookie Auth</h3>
           <p>HMAC-signed HttpOnly session cookies for admin API access. Supabase email-based admin detection or password login fallback.</p>
+        </div>
+        <div class="feature-card">
+          <span class="badge badge-new">New</span>
+          <h3>Improved Navigation</h3>
+          <p>Sidebar with links to Analytics, Businesses, Billing, and Add Business pages. Breadcrumb navigation in detail views.</p>
         </div>
       </div>
     </div>

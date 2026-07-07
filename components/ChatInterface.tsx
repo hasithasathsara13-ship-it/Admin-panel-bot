@@ -2342,15 +2342,15 @@ export function ChatInterface() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-full min-w-0 flex-1 flex-row overflow-x-hidden overflow-hidden rounded-none border-0 shadow-none md:rounded-2xl md:border md:border-[var(--color-border-card)] md:shadow-[var(--shadow-card)]">
+    <div className="mx-auto flex h-full w-full max-w-full flex-1 flex-row overflow-hidden rounded-none border-0 shadow-none md:rounded-2xl md:border md:border-[var(--color-border-card)] md:shadow-[var(--shadow-card)]">
 
       {/* ── Conversation List ────────────────────────────────────────────── */}
       <div
         className={[
-          "flex min-h-0 min-w-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface-solid)] md:flex-none md:flex",
-          isMobileChatOpen ? "hidden md:flex" : "flex",
+          "flex h-full flex-col border-r border-[var(--color-border)] bg-[var(--color-surface-solid)] md:flex-none md:flex",
+          isMobileChatOpen ? "hidden md:flex" : "flex w-full md:w-auto",
         ].join(" ")}
-        style={{ width: `${panelWidth}%`, minWidth: "200px", maxWidth: "50%" }}
+        style={{ width: isMobileChatOpen ? undefined : `min(100%, ${panelWidth}%)`, minWidth: isMobileChatOpen ? undefined : "200px", maxWidth: "50%" }}
       >
         {/* Header */}
         <div className="px-5 py-4 md:py-4 flex items-center justify-between shrink-0 border-b border-[var(--color-border)]">
@@ -2464,8 +2464,8 @@ export function ChatInterface() {
       {/* ── Chat Window ──────────────────────────────────────────────────── */}
       <div
         className={[
-          "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex",
-          isMobileChatOpen ? "flex" : "hidden md:flex",
+          "flex h-full flex-col overflow-hidden md:flex",
+          isMobileChatOpen ? "flex w-full" : "hidden md:flex md:flex-1",
         ].join(" ")}
         style={{
           backgroundColor: "var(--wa-chat-bg)",
@@ -2599,7 +2599,7 @@ export function ChatInterface() {
             {/* Messages container */}
             <div
               ref={messagesContainerRef}
-              className="min-h-0 flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-2 py-3 sm:px-4"
+              className="flex-1 space-y-1 overflow-x-hidden overflow-y-auto overscroll-y-contain px-2 py-3 sm:px-4"
             >
               {msgsLoading ? (
                 <div className="flex flex-col gap-4">
