@@ -39,21 +39,31 @@ function bubbleAudioWrap(isAI: boolean, children: ReactNode) {
 
 function WaAudioPlayer({ src, isAI }: { src: string; isAI: boolean }) {
   const [failed, setFailed] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined") {
+      const ua = navigator.userAgent;
+      setIsIOS(/iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+    }
+  }, []);
 
   if (failed) {
     return (
-      <div className="flex flex-col gap-1 py-0.5">
-        <span className="text-[12px] opacity-70">Voice message unavailable</span>
+      <div className="flex flex-col gap-1.5 py-0.5">
+        <span className="text-[12px] opacity-70">Voice message</span>
         <a
           href={src}
           target="_blank"
           rel="noopener noreferrer"
+          download="voice-message.m4a"
           className={[
-            "text-[12px] font-medium underline",
-            isAI ? "text-white/90" : "text-[var(--color-accent)]",
+            "inline-flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-lg transition-colors",
+            isAI ? "bg-white/20 text-white hover:bg-white/30" : "bg-[var(--color-accent-light)] text-[var(--color-accent)] hover:bg-[var(--color-accent)]/20",
           ].join(" ")}
         >
-          Download audio
+          <Download className="w-3 h-3" />
+          Play / Download
         </a>
       </div>
     );
@@ -63,11 +73,12 @@ function WaAudioPlayer({ src, isAI }: { src: string; isAI: boolean }) {
     isAI,
     <audio
       controls
-      preload="metadata"
+      preload={isIOS ? "auto" : "metadata"}
       src={src}
       onError={() => setFailed(true)}
       className="h-9 min-w-0 flex-1"
       style={{ colorScheme: isAI ? "dark" : "light" }}
+      playsInline
     />,
   );
 }
