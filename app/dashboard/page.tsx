@@ -410,7 +410,7 @@ export default function DashboardPage() {
                 <YAxis tick={{ fontSize: 11, fill: "var(--color-text-tertiary)" }} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
                 <Tooltip
                   contentStyle={{ background: "var(--color-surface-solid)", border: "1px solid var(--color-border-card)", borderRadius: 12, fontSize: 12 }}
-                  formatter={(value: number) => [formatMoney(value), "Revenue"]}
+                  formatter={(value: unknown) => [formatMoney(Number(value ?? 0)), "Revenue"]}
                 />
                 <Area type="monotone" dataKey="revenue" stroke="var(--color-accent)" strokeWidth={2} fill="url(#revenueGrad)" />
               </AreaChart>
@@ -437,7 +437,7 @@ export default function DashboardPage() {
                     <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "var(--color-text-secondary)" }} width={100} />
                     <Tooltip
                       contentStyle={{ background: "var(--color-surface-solid)", border: "1px solid var(--color-border-card)", borderRadius: 12, fontSize: 12 }}
-                      formatter={(value: number, name: string) => [name === "count" ? `${value} orders` : formatMoney(value), name === "count" ? "Orders" : "Revenue"]}
+                      formatter={(value: unknown, name: unknown) => [String(name) === "count" ? `${value} orders` : formatMoney(Number(value ?? 0)), String(name) === "count" ? "Orders" : "Revenue"]}
                     />
                     <Bar dataKey="count" fill="var(--color-accent)" radius={[0, 6, 6, 0]} />
                   </BarChart>
@@ -461,7 +461,7 @@ export default function DashboardPage() {
                     <Pie data={categoryData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
                       {categoryData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Pie>
-                    <Tooltip contentStyle={{ background: "var(--color-surface-solid)", border: "1px solid var(--color-border-card)", borderRadius: 12, fontSize: 12 }} formatter={(value: number) => formatMoney(value)} />
+                    <Tooltip contentStyle={{ background: "var(--color-surface-solid)", border: "1px solid var(--color-border-card)", borderRadius: 12, fontSize: 12 }} formatter={(value: unknown) => formatMoney(Number(value ?? 0))} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>
