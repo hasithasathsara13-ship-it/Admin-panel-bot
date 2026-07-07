@@ -431,3 +431,18 @@ input[type="checkbox"] {
   font-family: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
   font-weight: 500;
 }
+
+/* ─── Mobile Chat Fullscreen Mode ──────────────────────────────────────────── */
+/* When a chat is opened on mobile, hide topbar and bottom nav for immersive UX */
+@media (max-width: 767px) {
+  :root[data-mobile-chat-open="true"] [data-topbar] {
+    display: none !important;
+  }
+  :root[data-mobile-chat-open="true"] [data-bottom-nav] {
+    display: none !important;
+  }
+  /* Remove bottom padding that was reserved for the bottom nav */
+  :root[data-mobile-chat-open="true"] [data-main-content] {
+    padding-bottom: 0 !important;
+  }
+}

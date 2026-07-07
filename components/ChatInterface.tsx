@@ -1050,6 +1050,19 @@ export function ChatInterface() {
     setSavedContacts(loadSavedContacts(shopId));
   }, [shopId]);
 
+  // Set data attribute on root element when mobile chat is open
+  // This allows DashboardShell's Topbar and BottomNav to hide via CSS
+  useEffect(() => {
+    if (isMobileChatOpen) {
+      document.documentElement.setAttribute("data-mobile-chat-open", "true");
+    } else {
+      document.documentElement.removeAttribute("data-mobile-chat-open");
+    }
+    return () => {
+      document.documentElement.removeAttribute("data-mobile-chat-open");
+    };
+  }, [isMobileChatOpen]);
+
   // Fetch approved templates from Meta API
   useEffect(() => {
     if (!shopId) return;
@@ -2329,7 +2342,7 @@ export function ChatInterface() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-full min-w-0 flex-1 flex-row overflow-x-hidden overflow-hidden rounded-2xl border border-[var(--color-border-card)] shadow-[var(--shadow-card)] lg:rounded-none lg:border-0 lg:shadow-none">
+    <div className="mx-auto flex min-h-0 w-full max-w-full min-w-0 flex-1 flex-row overflow-x-hidden overflow-hidden rounded-none border-0 shadow-none md:rounded-2xl md:border md:border-[var(--color-border-card)] md:shadow-[var(--shadow-card)]">
 
       {/* ── Conversation List ────────────────────────────────────────────── */}
       <div

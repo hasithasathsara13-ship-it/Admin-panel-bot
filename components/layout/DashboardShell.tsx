@@ -500,7 +500,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-dvh bg-[var(--background)]">
       <div className="mx-auto flex h-dvh max-h-dvh min-h-0 w-full max-w-screen-2xl overflow-hidden">
         <Sidebar isExpired={billingOverlay?.blockMain ?? false} />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0">
+        <div data-main-content className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0">
           <Topbar
             theme={theme}
             onToggleTheme={() =>

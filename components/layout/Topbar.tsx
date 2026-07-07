@@ -69,6 +69,7 @@ export function Topbar({
 
   return (
     <header
+      data-topbar
       className={[
         "sticky top-0 border-b border-[var(--panel-border)] bg-[var(--color-surface-solid)] shadow-[0_1px_0_rgba(0,0,0,0.04)]",
         notificationsOpen || profileOpen ? "z-[60]" : "z-30",

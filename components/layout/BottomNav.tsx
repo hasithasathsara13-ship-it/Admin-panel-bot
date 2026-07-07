@@ -82,6 +82,7 @@ export function BottomNav() {
 
   return (
     <nav
+      data-bottom-nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-[#e5e7eb] bg-[#ffffff] pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 dark:border-[var(--color-border)] dark:bg-[var(--background)] lg:hidden"
       aria-label="Primary"
     >
