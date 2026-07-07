@@ -471,3 +471,21 @@ input[type="checkbox"] {
     max-width: 50%;
   }
 }
+
+/* ─── Prevent iOS auto-zoom on input focus ─────────────────────────────────── */
+/* iOS Safari zooms when input font-size < 16px. Force 16px on all inputs on mobile. */
+@media screen and (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Prevent pinch-to-zoom and double-tap zoom in PWA standalone mode */
+@media screen and (display-mode: standalone) {
+  html {
+    touch-action: pan-x pan-y;
+    -ms-touch-action: pan-x pan-y;
+  }
+}
