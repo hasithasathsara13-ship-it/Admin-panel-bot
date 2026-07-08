@@ -59,6 +59,8 @@ export default function SettingsPage() {
   const [billingMessagesUsed, setBillingMessagesUsed] = useState(0);
   const [billingQuotaHardBlock, setBillingQuotaHardBlock] = useState(false);
   const [billingLastMarkedPaidAt, setBillingLastMarkedPaidAt] = useState<string | null>(null);
+  const [serviceConvos, setServiceConvos] = useState(0);
+  const [businessConvos, setBusinessConvos] = useState(0);
   const [dbPlans, setDbPlans] = useState<DbPlan[]>([]);
 
   useEffect(() => {
@@ -124,6 +126,8 @@ export default function SettingsPage() {
       );
       setBillingMessagesUsed(Number(row.billing_messages_used_period ?? 0));
       setBillingQuotaHardBlock(Boolean(row.billing_quota_hard_block ?? false));
+      setServiceConvos(Number(row.billing_service_convos ?? 0));
+      setBusinessConvos(Number(row.billing_business_convos ?? 0));
       setBillingLastMarkedPaidAt(
         row.billing_last_marked_paid_at != null
           ? String(row.billing_last_marked_paid_at)
@@ -343,6 +347,8 @@ export default function SettingsPage() {
                 billingQuotaHardBlock={billingQuotaHardBlock}
                 billingLastMarkedPaidAt={billingLastMarkedPaidAt}
                 dbPlans={dbPlans}
+                serviceConvos={serviceConvos}
+                businessConvos={businessConvos}
               />
             ) : null}
           </CardContent>
@@ -362,6 +368,8 @@ function BillingSettingsView({
   billingQuotaHardBlock,
   billingLastMarkedPaidAt,
   dbPlans,
+  serviceConvos,
+  businessConvos,
 }: {
   loading: boolean;
   billingPlan: string;
@@ -372,6 +380,8 @@ function BillingSettingsView({
   billingQuotaHardBlock: boolean;
   billingLastMarkedPaidAt: string | null;
   dbPlans: DbPlan[];
+  serviceConvos: number;
+  businessConvos: number;
 }) {
   const planName = normalizePlanName(billingPlan);
 
@@ -380,6 +390,15 @@ function BillingSettingsView({
   const included = activePlanDb?.included_messages ?? PLAN_CONFIG[planName].includedMessages;
   const bufferExtra = bufferExtraMessages(included);
   const hardCap = hardCapMessages(included);
+
+  // Conversation billing
+  const FREE_SERVICE_LIMIT = 1000;
+  const SERVICE_OVERAGE_RATE = 9; // Rs. per extra service conversation
+  const BUSINESS_CONVO_RATE = 16; // Rs. per business-initiated conversation
+  const serviceOverage = Math.max(0, serviceConvos - FREE_SERVICE_LIMIT);
+  const serviceOverageCost = serviceOverage * SERVICE_OVERAGE_RATE;
+  const businessConvoCost = businessConvos * BUSINESS_CONVO_RATE;
+  const totalOverageCost = serviceOverageCost + businessConvoCost;
 
   // Live message count: count actual inbound messages from the messages table
   const [liveUsed, setLiveUsed] = useState<number | null>(null);
@@ -493,6 +512,44 @@ function BillingSettingsView({
           Last marked paid: {new Date(billingLastMarkedPaidAt).toLocaleString()}
         </div>
       ) : null}
+
+      {/* Conversation Usage & Costs */}
+      <div className="mt-4 rounded-xl border px-4 py-4" style={{ borderColor: 'var(--color-border-card)', background: 'var(--color-surface-solid)' }}>
+        <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>WhatsApp Conversation Usage</div>
+        <p className="mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+          First 1,000 customer-initiated conversations/month are free. Business-initiated (templates/broadcasts) are charged per conversation.
+        </p>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: 'var(--color-border-card)' }}>
+            <div className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-tertiary)' }}>Service Conversations</div>
+            <div className="mt-1 text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>{serviceConvos.toLocaleString()} / {FREE_SERVICE_LIMIT.toLocaleString()}</div>
+            <div className="mt-1 h-2 rounded-full overflow-hidden" style={{ background: 'var(--color-surface-secondary)' }}>
+              <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, (serviceConvos / FREE_SERVICE_LIMIT) * 100)}%`, background: serviceConvos > FREE_SERVICE_LIMIT ? '#ef4444' : 'var(--color-accent)' }} />
+            </div>
+            {serviceOverage > 0 && (
+              <div className="mt-1 text-xs text-red-600 font-medium">
+                +{serviceOverage} over free tier = LKR {serviceOverageCost.toLocaleString()} (Rs.{SERVICE_OVERAGE_RATE}/each)
+              </div>
+            )}
+          </div>
+          <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: 'var(--color-border-card)' }}>
+            <div className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--color-text-tertiary)' }}>Business-Initiated (Templates)</div>
+            <div className="mt-1 text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>{businessConvos.toLocaleString()}</div>
+            <div className="mt-1 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+              Rs.{BUSINESS_CONVO_RATE}/conversation = LKR {businessConvoCost.toLocaleString()}
+            </div>
+          </div>
+        </div>
+
+        {totalOverageCost > 0 && (
+          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+            <span className="font-semibold text-amber-800">Extra charges this period:</span>{" "}
+            <span className="font-bold text-amber-900">LKR {totalOverageCost.toLocaleString()}</span>
+            <span className="text-xs text-amber-700 ml-1">(added to your subscription)</span>
+          </div>
+        )}
+      </div>
 
       <div>
         <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Your plan</div>

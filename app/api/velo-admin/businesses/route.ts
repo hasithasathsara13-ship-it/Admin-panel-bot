@@ -68,6 +68,8 @@ export async function GET(req: NextRequest) {
         "enable_reviews",
         "crm_access",
         "crm_billing_cycle",
+        "billing_service_convos",
+        "billing_business_convos",
       ].join(", "),
     )
     .order("created_at", { ascending: false });

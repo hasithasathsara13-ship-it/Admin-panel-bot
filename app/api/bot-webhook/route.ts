@@ -472,6 +472,30 @@ export async function POST(req: NextRequest) {
         .from("businesses")
         .update({ billing_messages_used_period: used + 1 })
         .eq("id", business.id);
+
+      // Track unique service conversations for billing
+      // Only count once per unique phone number per billing period
+      const { error: convoErr } = await supabaseAdmin
+        .from("conversation_tracker")
+        .upsert(
+          { shop_id: business.id, phone_number: fromCustomer, convo_type: "service" },
+          { onConflict: "shop_id,phone_number,convo_type", ignoreDuplicates: true }
+        );
+      if (!convoErr) {
+        // If insert succeeded (not duplicate), increment the service convo counter
+        // We use a raw count query to keep it accurate
+        const { count } = await supabaseAdmin
+          .from("conversation_tracker")
+          .select("*", { count: "exact", head: true })
+          .eq("shop_id", business.id)
+          .eq("convo_type", "service");
+        if (count !== null) {
+          await supabaseAdmin
+            .from("businesses")
+            .update({ billing_service_convos: count })
+            .eq("id", business.id);
+        }
+      }
     } catch (quotaErr) {
       // Quota check failed — log the error but DO NOT block the message
       console.warn("[bot-webhook] Quota check failed (non-blocking):", quotaErr);

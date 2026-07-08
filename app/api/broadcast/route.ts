@@ -132,6 +132,15 @@ export async function POST(req: NextRequest) {
 
         if (res.ok) {
           results.push({ phone: cleanPhone, success: true });
+          // Track business-initiated conversation for billing
+          if (supabaseAdminForWhatsApp) {
+            await supabaseAdminForWhatsApp
+              .from("conversation_tracker")
+              .upsert(
+                { shop_id, phone_number: cleanPhone, convo_type: "business" },
+                { onConflict: "shop_id,phone_number,convo_type", ignoreDuplicates: true }
+              );
+          }
         } else {
           const errData = await res.json().catch(() => ({}));
           const errMsg =
@@ -156,6 +165,18 @@ export async function POST(req: NextRequest) {
     // Log broadcast to DB if admin client is available
     if (supabaseAdminForWhatsApp) {
       const sentCount = results.filter((r) => r.success).length;
+      // Update business convo count
+      const { count: bizConvoCount } = await supabaseAdminForWhatsApp
+        .from("conversation_tracker")
+        .select("*", { count: "exact", head: true })
+        .eq("shop_id", shop_id)
+        .eq("convo_type", "business");
+      if (bizConvoCount !== null) {
+        await supabaseAdminForWhatsApp
+          .from("businesses")
+          .update({ billing_business_convos: bizConvoCount })
+          .eq("id", shop_id);
+      }
       try {
         await supabaseAdminForWhatsApp.from("broadcast_logs").insert({
           shop_id,
