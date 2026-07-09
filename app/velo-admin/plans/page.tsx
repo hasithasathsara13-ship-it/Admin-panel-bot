@@ -9,6 +9,8 @@ type Plan = {
   description: string;
   monthly_price_lkr: number;
   included_messages: number;
+  free_business_templates: number;
+  service_convo_cap: number;
   max_products: number | null;
   max_orders_per_month: number | null;
   features: string[];
@@ -36,6 +38,8 @@ export default function PlansPage() {
   const [editPrice, setEditPrice] = useState("");
   const [editMessages, setEditMessages] = useState("");
   const [editMaxProducts, setEditMaxProducts] = useState("");
+  const [editFreeTemplates, setEditFreeTemplates] = useState("");
+  const [editServiceConvoCap, setEditServiceConvoCap] = useState("");
   const [editFeatures, setEditFeatures] = useState("");
 
   const loadPlans = useCallback(async () => {
@@ -67,6 +71,8 @@ export default function PlansPage() {
     setEditPrice(String(plan.monthly_price_lkr));
     setEditMessages(String(plan.included_messages));
     setEditMaxProducts(plan.max_products === null ? "" : String(plan.max_products));
+    setEditFreeTemplates(String(plan.free_business_templates ?? 25));
+    setEditServiceConvoCap(String(plan.service_convo_cap ?? 1000));
     setEditFeatures((plan.features ?? []).join("\n"));
     setError(null);
     setSuccess(null);
@@ -89,6 +95,8 @@ export default function PlansPage() {
         monthly_price_lkr: Number(editPrice) || 0,
         included_messages: Number(editMessages) || 0,
         max_products: editMaxProducts.trim() === "" ? null : Number(editMaxProducts),
+        free_business_templates: Number(editFreeTemplates) || 25,
+        service_convo_cap: Number(editServiceConvoCap) || 1000,
         features: editFeatures.split("\n").map((f) => f.trim()).filter(Boolean),
       }),
     });
@@ -191,6 +199,26 @@ export default function PlansPage() {
                       />
                     </label>
                     <label className="block space-y-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">Free Business Templates / Month</span>
+                      <input
+                        value={editFreeTemplates}
+                        onChange={(e) => setEditFreeTemplates(e.target.value)}
+                        type="number"
+                        placeholder="25"
+                        className="velo-admin-input w-full rounded-lg border border-white/10 px-3 py-2 text-sm font-mono outline-none focus:border-indigo-500/50"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">Service Convo Cap / Month</span>
+                      <input
+                        value={editServiceConvoCap}
+                        onChange={(e) => setEditServiceConvoCap(e.target.value)}
+                        type="number"
+                        placeholder="1000"
+                        className="velo-admin-input w-full rounded-lg border border-white/10 px-3 py-2 text-sm font-mono outline-none focus:border-indigo-500/50"
+                      />
+                    </label>
+                    <label className="block space-y-1">
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-white/60">Features (one per line)</span>
                       <textarea
                         value={editFeatures}
@@ -239,6 +267,14 @@ export default function PlansPage() {
                       <div className="flex justify-between">
                         <span>Messages/period</span>
                         <span className="font-semibold text-white">{plan.included_messages.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Free templates/month</span>
+                        <span className="font-semibold text-white">{plan.free_business_templates ?? 25}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Service convo cap</span>
+                        <span className="font-semibold text-white">{(plan.service_convo_cap ?? 1000).toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Max products</span>

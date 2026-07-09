@@ -81,6 +81,14 @@ export async function PATCH(req: NextRequest) {
   if (body.max_orders_per_month !== undefined) {
     patch.max_orders_per_month = body.max_orders_per_month === null ? null : Math.round(Number(body.max_orders_per_month));
   }
+  if (body.free_business_templates !== undefined) {
+    const t = Number(body.free_business_templates);
+    if (Number.isFinite(t) && t >= 0) patch.free_business_templates = Math.round(t);
+  }
+  if (body.service_convo_cap !== undefined) {
+    const c = Number(body.service_convo_cap);
+    if (Number.isFinite(c) && c >= 0) patch.service_convo_cap = Math.round(c);
+  }
   if (body.features !== undefined) {
     patch.features = Array.isArray(body.features) ? body.features : [];
   }
