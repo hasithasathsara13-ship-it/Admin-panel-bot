@@ -21,6 +21,7 @@ type OrderRow = {
   total_price: number | null;
   delivery_address: string | null;
   status: string | null;
+  created_at?: string | null;
 };
 
 export default function OrdersPage() {
@@ -155,6 +156,7 @@ export default function OrdersPage() {
 
   const filteredOrders = useMemo(() => {
     const q = search.trim().toLowerCase();
+
     return normalizedOrders.filter((o) => {
       const statusOk =
         tab === "all"
@@ -263,13 +265,13 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="space-y-6 theme-section-glow">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-4 pb-8">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-[var(--color-text-primary)]">
-            Order Management
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--color-text-primary)]">
+            Orders
           </h1>
-          <p className="mt-1.5 text-sm text-[var(--color-text-secondary)]">
+          <p className="mt-1 text-xs sm:text-sm text-[var(--color-text-secondary)]">
             Review, update, and message customers.
           </p>
         </div>
@@ -334,41 +336,38 @@ export default function OrdersPage() {
         />
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
             <KpiCard label="Total Orders" value={counts.total} />
             <KpiCard label="New Orders" value={counts.pending} />
-            <KpiCard label="Completed Orders" value={counts.delivered} />
-            <KpiCard label="Cancelled Orders" value={counts.cancelled} />
+            <KpiCard label="Completed" value={counts.delivered} />
+            <KpiCard label="Cancelled" value={counts.cancelled} />
           </div>
 
           <div className="theme-panel-strong rounded-2xl">
-            <div className="flex flex-col gap-3 border-b border-[var(--color-border-card)] p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap gap-2">
-                <TabChip active={tab === "all"} onClick={() => setTab("all")}>
-                  All order
-                </TabChip>
-                <TabChip
-                  active={tab === "completed"}
-                  onClick={() => setTab("completed")}
-                >
-                  Completed
-                </TabChip>
-                <TabChip
-                  active={tab === "pending"}
-                  onClick={() => setTab("pending")}
-                >
-                  Pending
-                </TabChip>
-              </div>
+            <div className="flex flex-col gap-3 border-b border-[var(--color-border-card)] p-3 sm:p-4">
+              {/* Status filter + Search */}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap gap-1.5">
+                  <TabChip active={tab === "all"} onClick={() => setTab("all")}>
+                    All
+                  </TabChip>
+                  <TabChip active={tab === "pending"} onClick={() => setTab("pending")}>
+                    Pending
+                  </TabChip>
+                  <TabChip active={tab === "completed"} onClick={() => setTab("completed")}>
+                    Completed
+                  </TabChip>
+                </div>
 
-              <div className="flex w-full max-w-sm items-center rounded-xl border border-[var(--panel-border-soft)] bg-[var(--panel-input-bg)] px-3 transition-all duration-200 focus-within:border-[var(--color-accent)] focus-within:bg-[var(--panel-input-focus-bg)] focus-within:ring-2 focus-within:ring-[var(--color-accent-glow)]">
-                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0 text-[var(--panel-icon)]"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search orders..."
-                  className="h-10 w-full bg-transparent px-2 text-sm text-[var(--color-text-primary)] outline-none"
-                />
+                <div className="flex w-full max-w-sm items-center rounded-xl border border-[var(--panel-border-soft)] bg-[var(--panel-input-bg)] px-3 transition-all duration-200 focus-within:border-[var(--color-accent)] focus-within:bg-[var(--panel-input-focus-bg)] focus-within:ring-2 focus-within:ring-[var(--color-accent-glow)]">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0 text-[var(--panel-icon)]"><path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" /></svg>
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search orders..."
+                    className="h-10 w-full bg-transparent px-2 text-[16px] sm:text-sm text-[var(--color-text-primary)] outline-none"
+                  />
+                </div>
               </div>
             </div>
 
@@ -427,41 +426,55 @@ export default function OrdersPage() {
               </TableShell>
             </div>
 
-            <div className="space-y-3 md:hidden">
+            <div className="space-y-3 p-3 pb-24 md:hidden md:pb-3">
               {filteredOrders.map((o) => {
                 const isPending = o._statusNorm === "pending";
                 const isDelivered = o._statusNorm === "delivered";
                 const isUpdating = updatingId === o.id;
 
                 return (
-                  <Card key={String(o.id)} className="overflow-hidden border-[var(--color-border-card)]">
-                    <CardContent className="space-y-3 p-4">
-                      <div className="text-sm text-[var(--color-text-secondary)]">
-                        {o.customer_phone ?? "—"}
+                  <div
+                    key={String(o.id)}
+                    className="rounded-2xl border p-4 transition-all"
+                    style={{ borderColor: "var(--color-border-card)", background: "var(--color-surface-solid)" }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[15px] font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>
+                          {o.product_name ?? "—"}
+                        </div>
+                        <div className="mt-0.5 text-xs font-mono" style={{ color: "var(--color-text-tertiary)" }}>
+                          {o.customer_phone ?? "—"}
+                        </div>
                       </div>
-                      <div className="text-base font-bold text-[var(--color-text-primary)]">
-                        {o.product_name ?? "—"}
+                      <OrderStatusBadge
+                        o={o}
+                        isPending={isPending}
+                        isDelivered={isDelivered}
+                        isUpdating={isUpdating}
+                      />
+                    </div>
+                    {o.delivery_address && (
+                      <div className="mt-2 text-xs leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                        📍 {o.delivery_address}
                       </div>
-                      <div>
-                        <OrderStatusBadge
-                          o={o}
-                          isPending={isPending}
-                          isDelivered={isDelivered}
-                          isUpdating={isUpdating}
-                        />
+                    )}
+                    {o.total_price != null && (
+                      <div className="mt-1.5 text-sm font-bold" style={{ color: "var(--color-text-primary)" }}>
+                        Rs. {Number(o.total_price).toLocaleString()}
                       </div>
-                      <div className="border-t border-[var(--color-border-card)] pt-3">
-                        <OrderActionButtons
-                          isPending={isPending}
-                          isUpdating={isUpdating}
-                          onInquire={() => openWhatsApp(o.customer_phone)}
-                          onDeliver={() => markDelivered(o.id)}
-                          disabledInquire={!o.customer_phone}
-                          fullWidth
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
+                    )}
+                    <div className="mt-3 pt-3 flex gap-2" style={{ borderTop: "1px solid var(--color-border-light)" }}>
+                      <OrderActionButtons
+                        isPending={isPending}
+                        isUpdating={isUpdating}
+                        onInquire={() => openWhatsApp(o.customer_phone)}
+                        onDeliver={() => markDelivered(o.id)}
+                        disabledInquire={!o.customer_phone}
+                        fullWidth
+                      />
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -553,15 +566,15 @@ function OrderActionButtons({
 function KpiCard({ label, value }: { label: string; value: number }) {
   const bar = Math.max(8, Math.min(100, value));
   return (
-    <div className="theme-panel relative overflow-hidden rounded-2xl p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-card-hover)]">
+    <div className="theme-panel relative overflow-hidden rounded-2xl p-4 sm:p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[var(--shadow-card-hover)]">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--color-text-tertiary)]/30 to-transparent" />
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
+      <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
         {label}
       </div>
-      <div className="mt-3 text-2xl font-bold tracking-tight text-[var(--color-text-primary)]">
+      <div className="mt-2 sm:mt-3 text-xl sm:text-2xl font-bold tracking-tight text-[var(--color-text-primary)]">
         {value}
       </div>
-      <div className="mt-3 h-1.5 w-full rounded-full bg-[var(--color-surface-hover)]">
+      <div className="mt-2 sm:mt-3 h-1.5 w-full rounded-full bg-[var(--color-surface-hover)]">
         <div
           className="h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-500"
           style={{ width: `${bar}%` }}
