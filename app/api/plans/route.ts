@@ -6,8 +6,7 @@ export const runtime = "nodejs";
 
 /**
  * GET /api/plans
- * Public endpoint — returns active plans for the merchant dashboard.
- * No auth required (plans are public catalog info).
+ * Returns all active plans from the database (public endpoint for client-side billing UI).
  */
 export async function GET() {
   const plans = await getPlans();

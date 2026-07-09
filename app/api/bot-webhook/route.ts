@@ -448,20 +448,23 @@ export async function POST(req: NextRequest) {
 
     // ── Quota check — use dynamic plan limits ───────────────────────────────
     try {
-      const { getPlanMessageLimit } = await import("@/lib/plansDb");
+      const { getPlanMessageLimit, getPlanServiceConvoCap } = await import("@/lib/plansDb");
       const planLimit = await getPlanMessageLimit(business.billing_plan || "Starter");
+      const serviceConvoCap = await getPlanServiceConvoCap(business.billing_plan || "Starter");
       const bufferRatio = 0.2;
       const hardCap = planLimit + Math.floor(planLimit * bufferRatio);
       // Get current usage from the business row
       const { data: usageRow } = await supabaseAdmin
         .from("businesses")
-        .select("billing_messages_used_period, billing_quota_hard_block")
+        .select("billing_messages_used_period, billing_quota_hard_block, billing_service_convos")
         .eq("id", business.id)
         .maybeSingle();
       const used = (usageRow as { billing_messages_used_period?: number })?.billing_messages_used_period ?? 0;
       const hardBlock = (usageRow as { billing_quota_hard_block?: boolean })?.billing_quota_hard_block ?? false;
+      const serviceConvos = (usageRow as { billing_service_convos?: number })?.billing_service_convos ?? 0;
 
-      if (hardBlock || used >= hardCap) {
+      // Block if: hard block flag set, OR messages exceed hard cap, OR service convos exceed cap
+      if (hardBlock || used >= hardCap || serviceConvos >= serviceConvoCap) {
         // Quota exceeded — still log the message but don't reply
         await supabaseAdmin.from("messages").insert([userRow]);
         return new NextResponse("OK", { status: 200 });

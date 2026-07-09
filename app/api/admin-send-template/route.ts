@@ -60,6 +60,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ── Template quota check ──────────────────────────────────────────────────
+    try {
+      const { getPlanFreeTemplates } = await import("@/lib/plansDb");
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (supabaseUrl && serviceKey) {
+        const admin = createClient(supabaseUrl, serviceKey);
+        const { data: biz } = await admin
+          .from("businesses")
+          .select("billing_plan, billing_templates_used_period")
+          .eq("id", shopIdClean)
+          .maybeSingle();
+        if (biz) {
+          const plan = (biz as Record<string, unknown>).billing_plan as string ?? "Starter";
+          const templatesUsed = Number((biz as Record<string, unknown>).billing_templates_used_period ?? 0);
+          const freeTemplates = await getPlanFreeTemplates(plan);
+          if (templatesUsed >= freeTemplates) {
+            return NextResponse.json(
+              { error: `Template quota exceeded. Your ${plan} plan includes ${freeTemplates} free templates/month. Used: ${templatesUsed}. Upgrade your plan for more.` },
+              { status: 429 }
+            );
+          }
+          // Increment template usage
+          await admin
+            .from("businesses")
+            .update({ billing_templates_used_period: templatesUsed + 1 })
+            .eq("id", shopIdClean);
+        }
+      }
+    } catch (quotaErr) {
+      console.warn("[admin-send-template] Template quota check failed (non-blocking):", quotaErr);
+    }
+
     console.log(
       `[admin-send-template] Sending template "${template_name}" to ${cleanPhone}`,
     );

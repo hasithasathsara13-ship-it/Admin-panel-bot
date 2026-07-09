@@ -53,6 +53,8 @@ export async function markBusinessPaid(shopId: string): Promise<MarkPaidResult> 
       subscription_status: "active",
       billing_next_due_at: nextDue.toISOString(),
       billing_messages_used_period: 0,
+      billing_templates_used_period: 0,
+      billing_service_convos: 0,
       billing_buffer_notice_sent: false,
       billing_quota_hard_block: false,
       billing_last_marked_paid_at: now.toISOString(),
