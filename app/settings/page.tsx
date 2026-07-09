@@ -17,6 +17,8 @@ type DbPlan = {
   description: string;
   monthly_price_lkr: number;
   included_messages: number;
+  free_business_templates?: number;
+  service_convo_cap?: number;
   features: string[];
 };
 import { supabase } from "../../lib/supabaseClient";
@@ -576,8 +578,10 @@ function BillingSettingsView({
               >
                 <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{p.display_name}</div>
                 <div className="mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>{p.description}</div>
-                <div className="mt-2 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                  Includes {p.included_messages.toLocaleString()} msgs / period + 20% courtesy
+                <div className="mt-2 space-y-0.5 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                  <div>✓ {p.included_messages.toLocaleString()} AI msgs / period + 20% courtesy</div>
+                  <div>✓ {(p as DbPlan).free_business_templates ?? 25} free templates / month</div>
+                  <div>✓ {((p as DbPlan).service_convo_cap ?? 1000).toLocaleString()} service convos cap</div>
                 </div>
                 <div className="mt-3 text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                   LKR {monthly} / mo
