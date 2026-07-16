@@ -427,6 +427,12 @@ function sortMessagesChronologically(msgs: Message[]): Message[] {
   return [...msgs].sort(compareMessagesChronologically);
 }
 
+/** Hidden system markers that must never render as chat bubbles. */
+function isHiddenMarkerMessage(content: string): boolean {
+  const c = content.trim();
+  return c.startsWith("[ORDER_CANCELLED]");
+}
+
 function rowToMessage(row: Record<string, unknown>): Message {
   const iso = String(row.created_at ?? new Date().toISOString());
   const role = String(row.role ?? "");
@@ -1407,7 +1413,9 @@ export function ChatInterface() {
     // before reversing so the read-only Supabase response is not mutated silently.
     const rows = [...(data as Record<string, unknown>[])].reverse();
     const msgs = sortMessagesChronologically(
-      filterRedundantVoiceTranscripts(rows.map(rowToMessage)),
+      filterRedundantVoiceTranscripts(
+        rows.map(rowToMessage).filter((m) => !isHiddenMarkerMessage(m.content)),
+      ),
     );
 
     setMessages(msgs);
@@ -1466,7 +1474,7 @@ export function ChatInterface() {
     }
 
     const rows = [...(data as Record<string, unknown>[])].reverse();
-    const olderMsgs = rows.map(rowToMessage);
+    const olderMsgs = rows.map(rowToMessage).filter((m) => !isHiddenMarkerMessage(m.content));
 
     if (olderMsgs.length > 0) {
       oldestCursorRef.current = olderMsgs[0].isoTime;
@@ -1565,6 +1573,9 @@ export function ChatInterface() {
           const phone = String(row.phone_number ?? "");
           const newMsg = rowToMessage(row);
           const openPhone = activePhoneRef.current;
+
+          // Hidden system markers (e.g. order-cancelled) must not appear in chat or sidebar.
+          if (isHiddenMarkerMessage(newMsg.content)) return;
 
           if (phone === openPhone) {
             setMessages((prev) => {
@@ -1704,7 +1715,7 @@ export function ChatInterface() {
       const rows = bootstrapping
         ? [...(data as Record<string, unknown>[])].reverse()
         : (data as Record<string, unknown>[]);
-      const additions = rows.map(rowToMessage);
+      const additions = rows.map(rowToMessage).filter((m) => !isHiddenMarkerMessage(m.content));
 
       setMessages((prev) => {
         const byId = new Map(prev.map((m) => [m.id, m]));

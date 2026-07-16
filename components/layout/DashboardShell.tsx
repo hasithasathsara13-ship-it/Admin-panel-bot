@@ -10,6 +10,7 @@ import {
   isPastDueInGrace,
 } from "../../lib/billing";
 import { getActiveShopId } from "../../lib/activeShopId";
+import { subscribeToPush, unsubscribeFromPush } from "../../lib/pushClient";
 import {
   loadAdminNotificationFeed,
   saveAdminNotificationFeed,
@@ -128,6 +129,15 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     setNotificationsEnabled(stored === "1");
   }, []);
 
+  // Keep the Web Push subscription fresh when notifications are already enabled.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!notificationsEnabled) return;
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const shopId = getActiveShopId();
+    if (shopId) void subscribeToPush(shopId);
+  }, [notificationsEnabled, session, sessionLoading]);
+
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     window.localStorage.setItem("admin-theme", theme);
@@ -139,6 +149,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     if (notificationsEnabled) {
       setNotificationsEnabled(false);
       window.localStorage.setItem("admin-notifications-enabled", "0");
+      void unsubscribeFromPush();
       return;
     }
 
@@ -157,9 +168,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
     setNotificationsEnabled(true);
     window.localStorage.setItem("admin-notifications-enabled", "1");
+
+    // Register Web Push so alerts arrive even when the app is closed / phone is locked (iOS 16.4+).
+    const shopId = getActiveShopId();
+    if (shopId) void subscribeToPush(shopId);
+
     try {
       new Notification("Notifications enabled", {
-        body: "You will get alerts for new orders and human handoff requests.",
+        body: "You will get alerts for new orders and human handoff requests, even when the app is closed.",
       });
     } catch {
       // Some browsers require user gesture; ignore.
@@ -280,10 +296,26 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         (payload) => {
           const row = payload.new as Record<string, unknown>;
           const content = String(row.content ?? "").trim();
-          if (!content.includes(handoffPhrase)) return;
-          const id = String(row.id ?? "");
-          if (id && !remember(`handoff:${id}`)) return;
           const phone = String(row.phone_number ?? "");
+          const id = String(row.id ?? "");
+
+          // Order cancellation marker → notify admin
+          if (content.includes("[ORDER_CANCELLED]")) {
+            if (id && !remember(`cancel:${id}`)) return;
+            const product = content.replace(/^\[ORDER_CANCELLED\]\s*Order cancelled by customer:\s*/i, "").trim();
+            const feedId = id
+              ? `cancel:${id}`
+              : `cancel:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            pushFeedAndMaybeBrowser({
+              id: feedId,
+              title: "Order cancelled",
+              body: product ? `${product}${phone ? ` • ${phone}` : ""}` : (phone ? `Customer: ${phone}` : "An order was cancelled"),
+            });
+            return;
+          }
+
+          if (!content.includes(handoffPhrase)) return;
+          if (id && !remember(`handoff:${id}`)) return;
           const feedId = id
             ? `handoff:${id}`
             : `handoff:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -323,10 +355,25 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         const rows = handoffRes.data as unknown as Array<Record<string, unknown>>;
         for (const r of rows) {
           const content = String(r.content ?? "").trim();
-          if (!content.includes(handoffPhrase)) continue;
           const id = String(r.id ?? "");
-          if (id && !remember(`handoff:${id}`)) continue;
           const phone = String(r.phone_number ?? "");
+
+          if (content.includes("[ORDER_CANCELLED]")) {
+            if (id && !remember(`cancel:${id}`)) continue;
+            const product = content.replace(/^\[ORDER_CANCELLED\]\s*Order cancelled by customer:\s*/i, "").trim();
+            const feedId = id
+              ? `cancel:${id}`
+              : `cancel:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            pushFeedAndMaybeBrowser({
+              id: feedId,
+              title: "Order cancelled",
+              body: product ? `${product}${phone ? ` • ${phone}` : ""}` : (phone ? `Customer: ${phone}` : "An order was cancelled"),
+            });
+            continue;
+          }
+
+          if (!content.includes(handoffPhrase)) continue;
+          if (id && !remember(`handoff:${id}`)) continue;
           const feedId = id
             ? `handoff:${id}`
             : `handoff:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

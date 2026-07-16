@@ -147,6 +147,47 @@ export default function OrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Live-update the orders list: remove cancelled/deleted orders and pull in new ones.
+  useEffect(() => {
+    if (!supabase) return;
+    const shopId = getActiveShopId();
+    if (!shopId) return;
+
+    const sb = supabase;
+    const channel = sb
+      .channel(`orders:page:${shopId}`)
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "orders" },
+        (payload) => {
+          const oldRow = payload.old as { id?: string | number } | null;
+          const id = oldRow?.id != null ? String(oldRow.id) : "";
+          if (!id) return;
+          setOrders((prev) => prev.filter((o) => String((o as { id?: string | number }).id) !== id));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "orders", filter: `shop_id=eq.${shopId}` },
+        () => {
+          void loadOrders();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "orders", filter: `shop_id=eq.${shopId}` },
+        () => {
+          void loadOrders();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      sb.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const normalizedOrders = useMemo(() => {
     return orders.map((o) => ({
       ...o,

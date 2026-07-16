@@ -5,6 +5,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
+import { sendPushToShop } from "@/lib/webPush";
 
 // OpenAI is global (one platform key); Meta credentials are resolved per-business.
 let _openai: OpenAI | null = null;
@@ -593,14 +594,17 @@ export async function POST(req: NextRequest) {
             userRow,
             { phone_number: fromCustomer, role: "model", content: shippedMsg, shop_id: business.id },
           ]);
+          void sendPushToShop(business.id, {
+            title: "Cancellation needs attention",
+            body: `Shipped order — customer ${fromCustomer} wants to cancel. Bot paused.`,
+            url: "/messages",
+            tag: `cancel-shipped:${fromCustomer}`,
+          });
           return new NextResponse("OK", { status: 200 });
         }
 
         if (withinFreeWindow) {
-          // Within 2 hours → auto-cancel, refund stock, notify customer
-          await supabaseAdmin.from("orders").update({ status: "Cancelled" }).eq("id", pendingOrder.id);
-
-          // Refund stock
+          // Within window → refund stock silently, delete order, notify customer + admin
           if (pendingOrder.product_name && allProducts) {
             const orderLines = String(pendingOrder.product_name).split(",");
             for (const line of orderLines) {
@@ -616,14 +620,25 @@ export async function POST(req: NextRequest) {
             }
           }
 
+          // Delete the order from the orders page
+          await supabaseAdmin.from("orders").delete().eq("id", pendingOrder.id);
+
           const cancelMsg = customerUsesSinglish(customerMessageText, validHistory)
-            ? "ඔයාගේ order එක successfully cancel කරා. Stock update කරලා. වෙන මොනවද help කරන්න පුළුවන්ද?"
-            : "Your order has been cancelled successfully. Stock has been updated. Is there anything else I can help with?";
+            ? "ඔයාගේ order එක cancel කරා. වෙන මොනවද help කරන්න පුළුවන්ද?"
+            : "Your order has been cancelled. Is there anything else I can help with?";
           await sendWhatsAppText(phoneId, token, fromCustomer, cancelMsg);
           await supabaseAdmin.from("messages").insert([
             userRow,
             { phone_number: fromCustomer, role: "model", content: cancelMsg, shop_id: business.id },
+            // Hidden marker message for admin notification (order cancelled)
+            { phone_number: fromCustomer, role: "model", content: `[ORDER_CANCELLED] Order cancelled by customer: ${pendingOrder.product_name}`, shop_id: business.id },
           ]);
+          void sendPushToShop(business.id, {
+            title: "Order cancelled",
+            body: `${pendingOrder.product_name} • ${fromCustomer}`,
+            url: "/orders",
+            tag: `cancel:${pendingOrder.id}`,
+          });
           return new NextResponse("OK", { status: 200 });
         }
 
@@ -637,6 +652,12 @@ export async function POST(req: NextRequest) {
           userRow,
           { phone_number: fromCustomer, role: "model", content: lateMsg, shop_id: business.id },
         ]);
+        void sendPushToShop(business.id, {
+          title: "Cancellation needs attention",
+          body: `Customer ${fromCustomer} wants to cancel (past free window). Bot paused.`,
+          url: "/messages",
+          tag: `cancel-late:${fromCustomer}`,
+        });
         return new NextResponse("OK", { status: 200 });
       }
 
@@ -650,6 +671,12 @@ export async function POST(req: NextRequest) {
         userRow,
         { phone_number: fromCustomer, role: "model", content: handoffMsg, shop_id: business.id },
       ]);
+      void sendPushToShop(business.id, {
+        title: "Human help needed",
+        body: `Customer ${fromCustomer} asked for a representative. Bot paused.`,
+        url: "/messages",
+        tag: `handoff:${fromCustomer}`,
+      });
       return new NextResponse("OK", { status: 200 });
     }
 
@@ -914,6 +941,13 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
             delivery_address: finalDeliveryAddress,
             payment_method: extractedPayment,
             status: "Pending",
+          });
+
+          void sendPushToShop(business.id, {
+            title: "New order",
+            body: `${extractedItemsStr} • ${fromCustomer}`,
+            url: "/orders",
+            tag: `order:${fromCustomer}:${Date.now()}`,
           });
 
           await supabaseAdmin
