@@ -3,15 +3,17 @@ import {
   normalizeWhatsAppRecipientDigits,
   resolveWhatsappPhoneNumberId,
   resolveMetaApiToken,
+  supabaseAdminForWhatsApp as supabaseAdmin,
 } from "@/lib/whatsappMetaPhone";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { phone_number, message, shop_id } = body as {
+    const { phone_number, message, shop_id, message_row_id } = body as {
       phone_number?: string;
       message?: string;
       shop_id?: string;
+      message_row_id?: string;
     };
 
     // ── Validate input ────────────────────────────────────────────────────────

@@ -478,17 +478,18 @@ export async function POST(req: NextRequest) {
       const { getPlanMessageLimit, getPlanServiceConvoCap } = await import("@/lib/plansDb");
       const planLimit = await getPlanMessageLimit(business.billing_plan || "Starter");
       const serviceConvoCap = await getPlanServiceConvoCap(business.billing_plan || "Starter");
-      const bufferRatio = 0.2;
+      const bufferRatio = 0.1;
       const hardCap = planLimit + Math.floor(planLimit * bufferRatio);
       // Get current usage from the business row
       const { data: usageRow } = await supabaseAdmin
         .from("businesses")
-        .select("billing_messages_used_period, billing_quota_hard_block, billing_service_convos")
+        .select("billing_messages_used_period, billing_quota_hard_block, billing_service_convos, billing_low_balance_notice_sent")
         .eq("id", business.id)
         .maybeSingle();
       const used = (usageRow as { billing_messages_used_period?: number })?.billing_messages_used_period ?? 0;
       const hardBlock = (usageRow as { billing_quota_hard_block?: boolean })?.billing_quota_hard_block ?? false;
       const serviceConvos = (usageRow as { billing_service_convos?: number })?.billing_service_convos ?? 0;
+      const lowBalanceNoticeSent = (usageRow as { billing_low_balance_notice_sent?: boolean })?.billing_low_balance_notice_sent ?? false;
 
       // Block if: hard block flag set, OR messages exceed hard cap, OR service convos exceed cap
       if (hardBlock || used >= hardCap || serviceConvos >= serviceConvoCap) {
@@ -498,10 +499,32 @@ export async function POST(req: NextRequest) {
       }
 
       // Increment usage counter
+      const newUsed = used + 1;
       await supabaseAdmin
         .from("businesses")
-        .update({ billing_messages_used_period: used + 1 })
+        .update({ billing_messages_used_period: newUsed })
         .eq("id", business.id);
+
+      // ── Low-balance notice — warn the owner when only ~100 plan messages remain ──
+      const remaining = planLimit - newUsed;
+      if (!lowBalanceNoticeSent && remaining <= 100 && remaining >= 0) {
+        // Mark as sent first (prevents duplicate fires under concurrent webhooks)
+        await supabaseAdmin
+          .from("businesses")
+          .update({ billing_low_balance_notice_sent: true })
+          .eq("id", business.id);
+
+        // Admin panel push + hidden marker for in-app notification
+        await sendPushToShop(business.id, {
+          title: "Low message balance",
+          body: `Only ~${remaining} bot messages left on your ${business.billing_plan || "Starter"} plan.`,
+          url: "/settings",
+          tag: `low-balance:${business.id}`,
+        });
+        await supabaseAdmin.from("messages").insert([
+          { phone_number: "system", role: "model", content: `[LOW_BALANCE] Only ${remaining} messages left on ${business.billing_plan || "Starter"} plan`, shop_id: business.id },
+        ]);
+      }
 
       // Track unique service conversations for billing
       // Only count once per unique phone number per billing period

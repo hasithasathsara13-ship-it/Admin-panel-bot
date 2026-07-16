@@ -607,7 +607,7 @@ function BillingSettingsView({
         Your plan and renewal dates are set when we <span className="font-semibold">mark your
         account paid</span>. Yearly billing charges <span className="font-semibold">10 months</span>{" "}
         of the monthly price (two months free). Each plan includes inbound message volume per
-        period, plus a <span className="font-semibold">20% courtesy buffer</span> before automated
+        period, plus a <span className="font-semibold">10% courtesy buffer</span> before automated
         replies should pause — you get a WhatsApp heads-up when you hit 100% of the included
         amount.
       </div>
@@ -718,7 +718,7 @@ function BillingSettingsView({
                 <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>{p.display_name}</div>
                 <div className="mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>{p.description}</div>
                 <div className="mt-2 space-y-0.5 text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                  <div>✓ {p.included_messages.toLocaleString()} AI msgs / period + 20% courtesy</div>
+                  <div>✓ {p.included_messages.toLocaleString()} AI msgs / period + 10% courtesy</div>
                   <div>✓ {(p as DbPlan).free_business_templates ?? 25} free templates / month</div>
                   <div>✓ {((p as DbPlan).service_convo_cap ?? 1000).toLocaleString()} service convos cap</div>
                 </div>

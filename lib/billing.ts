@@ -2,7 +2,7 @@
 
 export const BILLING_GRACE_DAYS = 3;
 
-export const MESSAGE_BUFFER_RATIO = 0.2;
+export const MESSAGE_BUFFER_RATIO = 0.1;
 
 export type BillingPlanName = "Starter" | "Growth" | "Scale";
 
@@ -17,18 +17,18 @@ export const PLAN_CONFIG: Record<
   { includedMessages: number; monthlyPriceLkr: number; description: string }
 > = {
   Starter: {
-    includedMessages: 1000,
-    monthlyPriceLkr: 4900,
+    includedMessages: 2000,
+    monthlyPriceLkr: 3500,
     description: "For small shops",
   },
   Growth: {
-    includedMessages: 3000,
-    monthlyPriceLkr: 9900,
+    includedMessages: 5000,
+    monthlyPriceLkr: 6500,
     description: "For growing teams",
   },
   Scale: {
-    includedMessages: 6000,
-    monthlyPriceLkr: 19900,
+    includedMessages: 10000,
+    monthlyPriceLkr: 12500,
     description: "For high-volume stores",
   },
 };

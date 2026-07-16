@@ -22,9 +22,9 @@ export type PlanRow = {
 
 // Hardcoded defaults (used if plans table doesn't exist)
 const DEFAULTS: PlanRow[] = [
-  { id: "Starter", display_name: "Starter", description: "For small shops", monthly_price_lkr: 4900, included_messages: 1000, free_business_templates: 25, service_convo_cap: 1000, max_products: 50, max_orders_per_month: null, features: [], is_active: true },
-  { id: "Growth", display_name: "Growth", description: "For growing teams", monthly_price_lkr: 9900, included_messages: 3000, free_business_templates: 50, service_convo_cap: 1000, max_products: 200, max_orders_per_month: null, features: [], is_active: true },
-  { id: "Scale", display_name: "Scale", description: "For high-volume stores", monthly_price_lkr: 19900, included_messages: 6000, free_business_templates: 75, service_convo_cap: 1000, max_products: null, max_orders_per_month: null, features: [], is_active: true },
+  { id: "Starter", display_name: "Starter", description: "For small shops", monthly_price_lkr: 3500, included_messages: 2000, free_business_templates: 25, service_convo_cap: 1000, max_products: 50, max_orders_per_month: null, features: [], is_active: true },
+  { id: "Growth", display_name: "Growth", description: "For growing teams", monthly_price_lkr: 6500, included_messages: 5000, free_business_templates: 50, service_convo_cap: 1000, max_products: 200, max_orders_per_month: null, features: [], is_active: true },
+  { id: "Scale", display_name: "Scale", description: "For high-volume stores", monthly_price_lkr: 12500, included_messages: 10000, free_business_templates: 75, service_convo_cap: 1000, max_products: null, max_orders_per_month: null, features: [], is_active: true },
 ];
 
 let _cached: PlanRow[] | null = null;
@@ -82,7 +82,7 @@ export async function getPlanById(planId: string): Promise<PlanRow | null> {
  */
 export async function getPlanMessageLimit(planId: string): Promise<number> {
   const plan = await getPlanById(planId);
-  return plan?.included_messages ?? 1000;
+  return plan?.included_messages ?? 2000;
 }
 
 /**
@@ -90,7 +90,7 @@ export async function getPlanMessageLimit(planId: string): Promise<number> {
  */
 export async function getPlanPrice(planId: string): Promise<number> {
   const plan = await getPlanById(planId);
-  return plan?.monthly_price_lkr ?? 4900;
+  return plan?.monthly_price_lkr ?? 3500;
 }
 
 /**

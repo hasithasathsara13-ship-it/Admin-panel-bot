@@ -314,6 +314,21 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             return;
           }
 
+          // Low-balance marker → notify admin the plan is almost out of messages
+          if (content.includes("[LOW_BALANCE]")) {
+            if (id && !remember(`lowbal:${id}`)) return;
+            const detail = content.replace(/^\[LOW_BALANCE\]\s*/i, "").trim();
+            const feedId = id
+              ? `lowbal:${id}`
+              : `lowbal:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            pushFeedAndMaybeBrowser({
+              id: feedId,
+              title: "Low message balance",
+              body: detail || "Your plan is almost out of bot messages. Renew or upgrade soon.",
+            });
+            return;
+          }
+
           if (!content.includes(handoffPhrase)) return;
           if (id && !remember(`handoff:${id}`)) return;
           const feedId = id
@@ -368,6 +383,20 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               id: feedId,
               title: "Order cancelled",
               body: product ? `${product}${phone ? ` • ${phone}` : ""}` : (phone ? `Customer: ${phone}` : "An order was cancelled"),
+            });
+            continue;
+          }
+
+          if (content.includes("[LOW_BALANCE]")) {
+            if (id && !remember(`lowbal:${id}`)) continue;
+            const detail = content.replace(/^\[LOW_BALANCE\]\s*/i, "").trim();
+            const feedId = id
+              ? `lowbal:${id}`
+              : `lowbal:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+            pushFeedAndMaybeBrowser({
+              id: feedId,
+              title: "Low message balance",
+              body: detail || "Your plan is almost out of bot messages. Renew or upgrade soon.",
             });
             continue;
           }

@@ -117,7 +117,7 @@ export async function PATCH(req: NextRequest) {
     // but we also reset the buffer flag so businesses get the new allowance
     await admin
       .from("businesses")
-      .update({ billing_buffer_notice_sent: false })
+      .update({ billing_buffer_notice_sent: false, billing_low_balance_notice_sent: false })
       .eq("billing_plan", planId);
   }
 

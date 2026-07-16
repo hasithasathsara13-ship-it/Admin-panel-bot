@@ -56,6 +56,7 @@ export async function markBusinessPaid(shopId: string): Promise<MarkPaidResult> 
       billing_templates_used_period: 0,
       billing_service_convos: 0,
       billing_buffer_notice_sent: false,
+      billing_low_balance_notice_sent: false,
       billing_quota_hard_block: false,
       billing_last_marked_paid_at: now.toISOString(),
     })

@@ -19,9 +19,9 @@ type BusinessRow = {
 };
 
 const PLAN_PRICES: Record<string, number> = {
-  Starter: 4900,
-  Growth: 9900,
-  Scale: 19900,
+  Starter: 3500,
+  Growth: 6500,
+  Scale: 12500,
 };
 
 const CRM_PRICE = 2000;
