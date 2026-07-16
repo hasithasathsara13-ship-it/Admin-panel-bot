@@ -577,7 +577,7 @@ export async function POST(req: NextRequest) {
       if (wantsCancel && pendingOrder) {
         // Check if order is within 2-hour free cancellation window
         const orderCreatedAt = new Date(pendingOrder.created_at).getTime();
-        const twoHoursMs = 2 * 60 * 60 * 1000;
+        const twoHoursMs = 1 * 60 * 60 * 1000;
         const withinFreeWindow = Date.now() - orderCreatedAt < twoHoursMs;
         const orderStatus = String(pendingOrder.status || "Pending").toLowerCase();
         const isShipped = orderStatus === "shipped" || orderStatus === "delivered";
@@ -630,8 +630,8 @@ export async function POST(req: NextRequest) {
         // Outside 2-hour window but not shipped → handoff to human
         await supabaseAdmin.from("customers").update({ bot_active: false }).eq("phone_number", fromCustomer).eq("shop_id", business.id);
         const lateMsg = customerUsesSinglish(customerMessageText, validHistory)
-          ? "Order cancel කිරීමට 2 hour window එක ඉවර වෙලා. Representative කෙනෙක්ට handover කරනවා."
-          : "The free cancellation window (2 hours) has passed. I'm handing over to a representative to assist.";
+          ? "Order cancel කිරීමට 1 hour window එක ඉවර වෙලා. Representative කෙනෙක්ට handover කරනවා."
+          : "The free cancellation window (1 hour) has passed. I'm handing over to a representative to assist.";
         await sendWhatsAppText(phoneId, token, fromCustomer, lateMsg);
         await supabaseAdmin.from("messages").insert([
           userRow,
