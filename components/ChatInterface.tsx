@@ -919,6 +919,30 @@ function formatVoiceTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
+/** Extract phone number from raw input — supports plain numbers, wa.me links, api.whatsapp.com links */
+function extractPhoneFromInput(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  // Try to extract from wa.me link: https://wa.me/94771234567
+  const waMe = trimmed.match(/wa\.me\/(\d+)/);
+  if (waMe) return waMe[1];
+
+  // Try to extract from api.whatsapp.com/send?phone=94771234567
+  const apiWa = trimmed.match(/phone=(\d+)/);
+  if (apiWa) return apiWa[1];
+
+  // Try to extract from chat.whatsapp.com link
+  const chatWa = trimmed.match(/chat\.whatsapp\.com\/.*?(\d{7,15})/);
+  if (chatWa) return chatWa[1];
+
+  // Plain number — strip everything except digits
+  const digits = trimmed.replace(/[^\d]/g, "");
+  if (digits.length >= 7) return digits;
+
+  return null;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ConversationRow
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3178,23 +3202,23 @@ export function ChatInterface() {
               </button>
             </div>
             <p className="text-[12px] text-[var(--color-text-tertiary)] mb-4">
-              Enter a phone number with country code to start a new conversation. You&apos;ll need to send a template message first if they haven&apos;t messaged you before.
+              Enter a phone number, or paste a WhatsApp link (wa.me/number).
             </p>
             <label className="block text-[12px] font-medium text-[var(--color-text-secondary)] mb-1.5">
-              Phone Number
+              Phone Number or WhatsApp Link
             </label>
             <input
-              type="tel"
+              type="text"
               value={newChatPhone}
               onChange={(e) => setNewChatPhone(e.target.value)}
-              placeholder="e.g. 94771234567"
+              placeholder="94771234567 or https://wa.me/94771234567"
               className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-secondary)] px-3 py-2.5 text-[14px] font-mono outline-none focus:border-[var(--color-accent)]"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  const phone = newChatPhone.replace(/[^\d]/g, "");
-                  if (phone.length >= 7) {
+                  const phone = extractPhoneFromInput(newChatPhone);
+                  if (phone && phone.length >= 7) {
                     setNewChatOpen(false);
                     setNewChatPhone("");
                     openConversation(phone);
@@ -3202,6 +3226,9 @@ export function ChatInterface() {
                 }
               }}
             />
+            <p className="mt-1.5 text-[11px] text-[var(--color-text-tertiary)]">
+              Supports: 94771234567, +94 77 123 4567, wa.me/94771234567, api.whatsapp.com/send?phone=94771234567
+            </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
@@ -3213,14 +3240,14 @@ export function ChatInterface() {
               <button
                 type="button"
                 onClick={() => {
-                  const phone = newChatPhone.replace(/[^\d]/g, "");
-                  if (phone.length >= 7) {
+                  const phone = extractPhoneFromInput(newChatPhone);
+                  if (phone && phone.length >= 7) {
                     setNewChatOpen(false);
                     setNewChatPhone("");
                     openConversation(phone);
                   }
                 }}
-                disabled={newChatPhone.replace(/[^\d]/g, "").length < 7}
+                disabled={!extractPhoneFromInput(newChatPhone) || (extractPhoneFromInput(newChatPhone)?.length ?? 0) < 7}
                 className="rounded-xl bg-[var(--color-accent)] px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40 hover:opacity-90 transition-opacity"
               >
                 Start Chat
