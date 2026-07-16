@@ -123,6 +123,10 @@ export default function BusinessDetailPage() {
       credentials: "include",
       body: JSON.stringify({
         shop_id: id,
+        business_name: name || null,
+        whatsapp_number: phone || null,
+        support_email: email || null,
+        business_category: category || null,
         brand_voice: brandVoice || null,
         waba_id: wabaId || null,
         meta_api_token: metaApiToken || null,

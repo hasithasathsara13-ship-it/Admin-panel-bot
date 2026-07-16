@@ -29,6 +29,10 @@ export async function PATCH(req: NextRequest) {
 
   let body: {
     shop_id?: string;
+    business_name?: string;
+    whatsapp_number?: string;
+    support_email?: string;
+    business_category?: string;
     billing_plan?: string;
     billing_cycle?: string;
     subscription_status?: string;
@@ -56,6 +60,24 @@ export async function PATCH(req: NextRequest) {
   }
 
   const patch: Record<string, unknown> = {};
+
+  // Basic business info fields
+  if (body.business_name !== undefined) {
+    const v = typeof body.business_name === "string" ? body.business_name.trim() : "";
+    if (v) patch.business_name = v;
+  }
+  if (body.whatsapp_number !== undefined) {
+    const v = typeof body.whatsapp_number === "string" ? body.whatsapp_number.trim() : "";
+    patch.whatsapp_number = v || null;
+  }
+  if (body.support_email !== undefined) {
+    const v = typeof body.support_email === "string" ? body.support_email.trim() : "";
+    patch.support_email = v || null;
+  }
+  if (body.business_category !== undefined) {
+    const v = typeof body.business_category === "string" ? body.business_category.trim() : "";
+    patch.business_category = v || null;
+  }
 
   if (body.billing_plan != null) {
     const p = String(body.billing_plan).trim();
