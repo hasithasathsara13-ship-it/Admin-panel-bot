@@ -1932,8 +1932,13 @@ export function ChatInterface() {
       }
 
       try {
-        const waData = (await waRes.json()) as { messages?: Array<{ id?: string }> };
-        const id = waData?.messages?.[0]?.id;
+        // admin-send returns { ok: true, data: <Meta response> } where the Meta
+        // response holds messages[0].id (the wamid). Handle both nested + flat shapes.
+        const waData = (await waRes.json()) as {
+          messages?: Array<{ id?: string }>;
+          data?: { messages?: Array<{ id?: string }> };
+        };
+        const id = waData?.data?.messages?.[0]?.id ?? waData?.messages?.[0]?.id;
         if (typeof id === "string" && id.trim()) waWamid = id.trim();
       } catch {
         /* ignore parse errors */

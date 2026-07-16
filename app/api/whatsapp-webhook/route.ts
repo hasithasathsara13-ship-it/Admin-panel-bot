@@ -496,6 +496,32 @@ export async function POST(req: NextRequest) {
 
 
 
+      // ── Delivery/read status updates (WhatsApp double/blue ticks) ──────────
+      const statuses = value.statuses as
+        | Array<{ id?: string; status?: string }>
+        | undefined;
+      if (Array.isArray(statuses) && statuses.length > 0) {
+        for (const st of statuses) {
+          const wamid = st.id;
+          const metaStatus = st.status; // sent | delivered | read | failed
+          if (!wamid || !metaStatus || metaStatus === "failed") continue;
+          const deliveryStatus =
+            metaStatus === "read" ? "read" : metaStatus === "delivered" ? "delivered" : "sent";
+          const { error: dsErr } = await admin
+            .from("messages")
+            .update({ delivery_status: deliveryStatus })
+            .eq("wa_message_id", wamid);
+          if (dsErr) {
+            console.error("[whatsapp-webhook] delivery_status update error:", dsErr.message, "wamid:", wamid);
+          } else {
+            console.log("[whatsapp-webhook] delivery_status set:", deliveryStatus, "wamid:", wamid);
+          }
+        }
+        continue;
+      }
+
+
+
       const metadata = value.metadata as { phone_number_id?: string } | undefined;
 
       const phoneNumberId = metadata?.phone_number_id;
