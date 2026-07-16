@@ -594,7 +594,7 @@ export async function POST(req: NextRequest) {
             userRow,
             { phone_number: fromCustomer, role: "model", content: shippedMsg, shop_id: business.id },
           ]);
-          void sendPushToShop(business.id, {
+          await sendPushToShop(business.id, {
             title: "Cancellation needs attention",
             body: `Shipped order — customer ${fromCustomer} wants to cancel. Bot paused.`,
             url: "/messages",
@@ -633,7 +633,7 @@ export async function POST(req: NextRequest) {
             // Hidden marker message for admin notification (order cancelled)
             { phone_number: fromCustomer, role: "model", content: `[ORDER_CANCELLED] Order cancelled by customer: ${pendingOrder.product_name}`, shop_id: business.id },
           ]);
-          void sendPushToShop(business.id, {
+          await sendPushToShop(business.id, {
             title: "Order cancelled",
             body: `${pendingOrder.product_name} • ${fromCustomer}`,
             url: "/orders",
@@ -652,7 +652,7 @@ export async function POST(req: NextRequest) {
           userRow,
           { phone_number: fromCustomer, role: "model", content: lateMsg, shop_id: business.id },
         ]);
-        void sendPushToShop(business.id, {
+        await sendPushToShop(business.id, {
           title: "Cancellation needs attention",
           body: `Customer ${fromCustomer} wants to cancel (past free window). Bot paused.`,
           url: "/messages",
@@ -671,7 +671,7 @@ export async function POST(req: NextRequest) {
         userRow,
         { phone_number: fromCustomer, role: "model", content: handoffMsg, shop_id: business.id },
       ]);
-      void sendPushToShop(business.id, {
+      await sendPushToShop(business.id, {
         title: "Human help needed",
         body: `Customer ${fromCustomer} asked for a representative. Bot paused.`,
         url: "/messages",
@@ -943,7 +943,7 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
             status: "Pending",
           });
 
-          void sendPushToShop(business.id, {
+          await sendPushToShop(business.id, {
             title: "New order",
             body: `${extractedItemsStr} • ${fromCustomer}`,
             url: "/orders",
