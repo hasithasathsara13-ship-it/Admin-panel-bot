@@ -571,17 +571,80 @@ export async function POST(req: NextRequest) {
 
     const lowerMessage = customerMessageText.toLowerCase();
 
-    // Explicit human request OR cancel order request → handoff to human
+    // Explicit human request OR cancel order request
     const wantsCancel = /cancel|order.*epa|epa.*order|order.*nathi|nathi.*order|cancel karanna|order eka cancel|order cancel|need to cancel|i want to cancel/i.test(lowerMessage);
     if (lowerMessage.match(/human|manager|call|owner|representative/) || wantsCancel) {
+      if (wantsCancel && pendingOrder) {
+        // Check if order is within 2-hour free cancellation window
+        const orderCreatedAt = new Date(pendingOrder.created_at).getTime();
+        const twoHoursMs = 2 * 60 * 60 * 1000;
+        const withinFreeWindow = Date.now() - orderCreatedAt < twoHoursMs;
+        const orderStatus = String(pendingOrder.status || "Pending").toLowerCase();
+        const isShipped = orderStatus === "shipped" || orderStatus === "delivered";
+
+        if (isShipped) {
+          // Order already shipped → handoff to human, cannot auto-cancel
+          await supabaseAdmin.from("customers").update({ bot_active: false }).eq("phone_number", fromCustomer).eq("shop_id", business.id);
+          const shippedMsg = customerUsesSinglish(customerMessageText, validHistory)
+            ? "ඔයාගේ order එක දැනටමත් shipped වෙලා. Cancel කිරීම සඳහා representative කෙනෙක්ට handover කරනවා."
+            : "Your order has already been shipped. I'm handing over to a representative to assist with the cancellation.";
+          await sendWhatsAppText(phoneId, token, fromCustomer, shippedMsg);
+          await supabaseAdmin.from("messages").insert([
+            userRow,
+            { phone_number: fromCustomer, role: "model", content: shippedMsg, shop_id: business.id },
+          ]);
+          return new NextResponse("OK", { status: 200 });
+        }
+
+        if (withinFreeWindow) {
+          // Within 2 hours → auto-cancel, refund stock, notify customer
+          await supabaseAdmin.from("orders").update({ status: "Cancelled" }).eq("id", pendingOrder.id);
+
+          // Refund stock
+          if (pendingOrder.product_name && allProducts) {
+            const orderLines = String(pendingOrder.product_name).split(",");
+            for (const line of orderLines) {
+              const qtyMatch = line.trim().match(/^(\d+)\s*x\s*(.+)$/i);
+              const qty = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;
+              const searchName = qtyMatch ? qtyMatch[2].trim() : line.trim();
+              const item = allProducts.find((p: { name: string; stock_count?: number }) =>
+                p.name.toLowerCase().includes(searchName.toLowerCase())
+              );
+              if (item) {
+                await supabaseAdmin.from("products").update({ stock_count: (item.stock_count ?? 0) + qty }).eq("id", item.id);
+              }
+            }
+          }
+
+          const cancelMsg = customerUsesSinglish(customerMessageText, validHistory)
+            ? "ඔයාගේ order එක successfully cancel කරා. Stock update කරලා. වෙන මොනවද help කරන්න පුළුවන්ද?"
+            : "Your order has been cancelled successfully. Stock has been updated. Is there anything else I can help with?";
+          await sendWhatsAppText(phoneId, token, fromCustomer, cancelMsg);
+          await supabaseAdmin.from("messages").insert([
+            userRow,
+            { phone_number: fromCustomer, role: "model", content: cancelMsg, shop_id: business.id },
+          ]);
+          return new NextResponse("OK", { status: 200 });
+        }
+
+        // Outside 2-hour window but not shipped → handoff to human
+        await supabaseAdmin.from("customers").update({ bot_active: false }).eq("phone_number", fromCustomer).eq("shop_id", business.id);
+        const lateMsg = customerUsesSinglish(customerMessageText, validHistory)
+          ? "Order cancel කිරීමට 2 hour window එක ඉවර වෙලා. Representative කෙනෙක්ට handover කරනවා."
+          : "The free cancellation window (2 hours) has passed. I'm handing over to a representative to assist.";
+        await sendWhatsAppText(phoneId, token, fromCustomer, lateMsg);
+        await supabaseAdmin.from("messages").insert([
+          userRow,
+          { phone_number: fromCustomer, role: "model", content: lateMsg, shop_id: business.id },
+        ]);
+        return new NextResponse("OK", { status: 200 });
+      }
+
+      // Regular human handoff (not cancel-related)
       await supabaseAdmin.from("customers").update({ bot_active: false }).eq("phone_number", fromCustomer).eq("shop_id", business.id);
-      const handoffMsg = wantsCancel
-        ? (customerUsesSinglish(customerMessageText, validHistory)
-            ? "Order cancel කිරීම සඳහා representative කෙනෙක්ට handover කරනවා. ටික වේලාවක් ඉන්න."
-            : "To cancel your order, I'm handing over to a representative. Please hold on.")
-        : (customerUsesSinglish(customerMessageText, validHistory)
-            ? "හරි, representative කෙනෙක්ට transfer කරනවා. Bot activate කරන්න 'active' type කරන්න."
-            : "I will transfer you to a representative. Type 'active' to reactivate the bot anytime.");
+      const handoffMsg = customerUsesSinglish(customerMessageText, validHistory)
+        ? "හරි, representative කෙනෙක්ට transfer කරනවා. Bot activate කරන්න 'active' type කරන්න."
+        : "I will transfer you to a representative. Type 'active' to reactivate the bot anytime.";
       await sendWhatsAppText(phoneId, token, fromCustomer, handoffMsg);
       await supabaseAdmin.from("messages").insert([
         userRow,
