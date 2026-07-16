@@ -572,15 +572,15 @@ export async function POST(req: NextRequest) {
     const lowerMessage = customerMessageText.toLowerCase();
 
     // Explicit human request OR cancel order request → handoff to human
-    const wantsCancel = /cancel.*order|order.*cancel|cancel karanna|order eka cancel|cancel kara|nathi karanna|order eka epa/i.test(lowerMessage);
+    const wantsCancel = /cancel|order.*epa|epa.*order|order.*nathi|nathi.*order|cancel karanna|order eka cancel|order cancel|need to cancel|i want to cancel/i.test(lowerMessage);
     if (lowerMessage.match(/human|manager|call|owner|representative/) || wantsCancel) {
       await supabaseAdmin.from("customers").update({ bot_active: false }).eq("phone_number", fromCustomer).eq("shop_id", business.id);
       const handoffMsg = wantsCancel
         ? (customerUsesSinglish(customerMessageText, validHistory)
-            ? "Order cancel කිරීම සඳහා representative කෙනෙක්ට transfer කරනවා. Bot activate කරන්න 'active' type කරන්න."
-            : "I'll transfer you to a representative to handle the cancellation. Type 'active' to reactivate the bot.")
+            ? "Order cancel කිරීම සඳහා representative කෙනෙක්ට handover කරනවා. ටික වේලාවක් ඉන්න."
+            : "To cancel your order, I'm handing over to a representative. Please hold on.")
         : (customerUsesSinglish(customerMessageText, validHistory)
-            ? "හරි, transfer කරන්නම්. Bot එක activate කරන්න ඕන නම් 'active' කියලා type කරන්න."
+            ? "හරි, representative කෙනෙක්ට transfer කරනවා. Bot activate කරන්න 'active' type කරන්න."
             : "I will transfer you to a representative. Type 'active' to reactivate the bot anytime.");
       await sendWhatsAppText(phoneId, token, fromCustomer, handoffMsg);
       await supabaseAdmin.from("messages").insert([
