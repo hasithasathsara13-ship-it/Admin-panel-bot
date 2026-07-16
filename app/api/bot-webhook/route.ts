@@ -79,15 +79,23 @@ export async function GET(req: NextRequest) {
 // ─────────────────────────────────────────────────────────────────────────────
 // WhatsApp helpers — all credentials are passed in (no globals)
 // ─────────────────────────────────────────────────────────────────────────────
-async function sendWhatsAppText(phoneId: string, token: string, to: string, text: string) {
+async function sendWhatsAppText(phoneId: string, token: string, to: string, text: string): Promise<string | null> {
   try {
-    await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
+    const res = await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body: text } }),
     });
+    if (res.ok) {
+      try {
+        const data = (await res.json()) as { messages?: Array<{ id?: string }> };
+        return data?.messages?.[0]?.id ?? null;
+      } catch { return null; }
+    }
+    return null;
   } catch (error) {
     console.error("❌ META API ERROR (text):", error);
+    return null;
   }
 }
 
@@ -454,10 +462,10 @@ export async function POST(req: NextRequest) {
       if (reactivateKeywords.test(dbMessageContent.trim())) {
         await supabaseAdmin.from("customers").update({ bot_active: true }).eq("id", customer.id);
         const reactivateMsg = "Bot activated! How can I help you?";
-        await sendWhatsAppText(phoneId, token, fromCustomer, reactivateMsg);
+        const reactivateWamid = await sendWhatsAppText(phoneId, token, fromCustomer, reactivateMsg);
         await supabaseAdmin.from("messages").insert([
           userRow,
-          { phone_number: fromCustomer, role: "model", content: reactivateMsg, shop_id: business.id },
+          { phone_number: fromCustomer, role: "model", content: reactivateMsg, shop_id: business.id, wa_message_id: reactivateWamid },
         ]);
         return new NextResponse("OK", { status: 200 });
       }
@@ -607,10 +615,10 @@ export async function POST(req: NextRequest) {
           const shippedMsg = customerUsesSinglish(customerMessageText, validHistory)
             ? "ඔයාගේ order එක දැනටමත් shipped වෙලා. Cancel කිරීම සඳහා representative කෙනෙක්ට handover කරනවා."
             : "Your order has already been shipped. I'm handing over to a representative to assist with the cancellation.";
-          await sendWhatsAppText(phoneId, token, fromCustomer, shippedMsg);
+          const shippedWamid = await sendWhatsAppText(phoneId, token, fromCustomer, shippedMsg);
           await supabaseAdmin.from("messages").insert([
             userRow,
-            { phone_number: fromCustomer, role: "model", content: shippedMsg, shop_id: business.id },
+            { phone_number: fromCustomer, role: "model", content: shippedMsg, shop_id: business.id, wa_message_id: shippedWamid },
           ]);
           await sendPushToShop(business.id, {
             title: "Cancellation needs attention",
@@ -644,10 +652,10 @@ export async function POST(req: NextRequest) {
           const cancelMsg = customerUsesSinglish(customerMessageText, validHistory)
             ? "ඔයාගේ order එක cancel කරා. වෙන මොනවද help කරන්න පුළුවන්ද?"
             : "Your order has been cancelled. Is there anything else I can help with?";
-          await sendWhatsAppText(phoneId, token, fromCustomer, cancelMsg);
+          const cancelWamid = await sendWhatsAppText(phoneId, token, fromCustomer, cancelMsg);
           await supabaseAdmin.from("messages").insert([
             userRow,
-            { phone_number: fromCustomer, role: "model", content: cancelMsg, shop_id: business.id },
+            { phone_number: fromCustomer, role: "model", content: cancelMsg, shop_id: business.id, wa_message_id: cancelWamid },
             // Hidden marker message for admin notification (order cancelled)
             { phone_number: fromCustomer, role: "model", content: `[ORDER_CANCELLED] Order cancelled by customer: ${pendingOrder.product_name}`, shop_id: business.id },
           ]);
@@ -665,10 +673,10 @@ export async function POST(req: NextRequest) {
         const lateMsg = customerUsesSinglish(customerMessageText, validHistory)
           ? "Order cancel කිරීමට 1 hour window එක ඉවර වෙලා. Representative කෙනෙක්ට handover කරනවා."
           : "The free cancellation window (1 hour) has passed. I'm handing over to a representative to assist.";
-        await sendWhatsAppText(phoneId, token, fromCustomer, lateMsg);
+        const lateWamid = await sendWhatsAppText(phoneId, token, fromCustomer, lateMsg);
         await supabaseAdmin.from("messages").insert([
           userRow,
-          { phone_number: fromCustomer, role: "model", content: lateMsg, shop_id: business.id },
+          { phone_number: fromCustomer, role: "model", content: lateMsg, shop_id: business.id, wa_message_id: lateWamid },
         ]);
         await sendPushToShop(business.id, {
           title: "Cancellation needs attention",
@@ -684,10 +692,10 @@ export async function POST(req: NextRequest) {
       const handoffMsg = customerUsesSinglish(customerMessageText, validHistory)
         ? "හරි, representative කෙනෙක්ට transfer කරනවා. Bot activate කරන්න 'active' type කරන්න."
         : "I will transfer you to a representative. Type 'active' to reactivate the bot anytime.";
-      await sendWhatsAppText(phoneId, token, fromCustomer, handoffMsg);
+      const handoffWamid = await sendWhatsAppText(phoneId, token, fromCustomer, handoffMsg);
       await supabaseAdmin.from("messages").insert([
         userRow,
-        { phone_number: fromCustomer, role: "model", content: handoffMsg, shop_id: business.id },
+        { phone_number: fromCustomer, role: "model", content: handoffMsg, shop_id: business.id, wa_message_id: handoffWamid },
       ]);
       await sendPushToShop(business.id, {
         title: "Human help needed",
@@ -897,10 +905,10 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
         .eq("phone_number", fromCustomer)
         .eq("shop_id", business.id);
       const handoffText = "I will transfer you to a representative. Type 'active' to reactivate the bot anytime.";
-      await sendWhatsAppText(phoneId, token, fromCustomer, handoffText);
+      const handoffText2Wamid = await sendWhatsAppText(phoneId, token, fromCustomer, handoffText);
       await supabaseAdmin.from("messages").insert([
         userRow,
-        { phone_number: fromCustomer, role: "model", content: handoffText, shop_id: business.id },
+        { phone_number: fromCustomer, role: "model", content: handoffText, shop_id: business.id, wa_message_id: handoffText2Wamid },
       ]);
       return new NextResponse("OK", { status: 200 });
     }
@@ -1039,9 +1047,24 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
 
     if (cleanText) {
       const rawBubbles = cleanText.split("||").map((t) => t.trim()).filter((t) => t.length > 0);
+      let lastWamid: string | null = null;
       for (const bubble of rawBubbles) {
-        await sendWhatsAppText(phoneId, token, fromCustomer, bubble);
+        const wamid = await sendWhatsAppText(phoneId, token, fromCustomer, bubble);
+        if (wamid) lastWamid = wamid;
         await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      // Persist the wa_message_id so Meta's delivery/read callbacks can update ticks.
+      if (lastWamid) {
+        await supabaseAdmin
+          .from("messages")
+          .update({ wa_message_id: lastWamid })
+          .eq("shop_id", business.id)
+          .eq("phone_number", fromCustomer)
+          .eq("role", "model")
+          .eq("content", rawAiResponse)
+          .is("wa_message_id", null)
+          .order("created_at", { ascending: false })
+          .limit(1);
       }
     }
 

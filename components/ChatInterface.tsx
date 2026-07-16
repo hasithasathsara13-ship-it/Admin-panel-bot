@@ -70,7 +70,8 @@ function isMissingChatColumnsError(err: { message?: string } | null): boolean {
     m.includes("reply_to_id") ||
     m.includes("reply_snippet") ||
     m.includes("edited_at") ||
-    m.includes("wa_message_id")
+    m.includes("wa_message_id") ||
+    m.includes("delivery_status")
   );
 }
 
