@@ -25,6 +25,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { getActiveShopId } from "../../lib/activeShopId";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader } from "../../components/ui/card";
+import { pushSupported, subscribeToPush, unsubscribeFromPush } from "../../lib/pushClient";
 
 const menu = [
   "Store Profile",
@@ -330,11 +331,7 @@ export default function SettingsPage() {
                   onChange={setNotifLowStock}
                   disabled={loading || saving}
                 />
-                <div className="rounded-xl border px-4 py-3 text-xs" style={{ borderColor: 'var(--color-border-card)', background: 'var(--color-surface-secondary)', color: 'var(--color-text-secondary)' }}>
-                  These notification preferences are saved and working. They currently control
-                  app-level notification settings stored in your database. If you want, I can next
-                  wire them to real channels (email/WhatsApp/push) event-by-event.
-                </div>
+                <PushNotificationPanel />
               </div>
             ) : null}
 
@@ -356,6 +353,148 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function PushNotificationPanel() {
+  const [status, setStatus] = useState<"unknown" | "supported" | "unsupported">("unknown");
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setStatus(pushSupported() ? "supported" : "unsupported");
+    setEnabled(window.localStorage.getItem("admin-notifications-enabled") === "1");
+    // iOS only allows push from the installed (home-screen) PWA.
+    const standalone =
+      window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+    setIsStandalone(Boolean(standalone));
+  }, []);
+
+  const enable = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      if (!("Notification" in window)) {
+        setMsg("This browser does not support notifications.");
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        setMsg("Permission denied. Enable notifications for this app in your phone settings.");
+        return;
+      }
+      const shopId = getActiveShopId();
+      if (!shopId) {
+        setMsg("No shop selected. Please log in again.");
+        return;
+      }
+      const ok = await subscribeToPush(shopId);
+      if (!ok) {
+        setMsg("Could not register this device. Make sure you opened the app from your home screen.");
+        return;
+      }
+      window.localStorage.setItem("admin-notifications-enabled", "1");
+      setEnabled(true);
+      setMsg("Notifications enabled on this device.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disable = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await unsubscribeFromPush();
+      window.localStorage.setItem("admin-notifications-enabled", "0");
+      setEnabled(false);
+      setMsg("Notifications disabled on this device.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendTest = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const shopId = getActiveShopId();
+      if (!shopId) {
+        setMsg("No shop selected. Please log in again.");
+        return;
+      }
+      const res = await fetch("/api/push/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopId }),
+      });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        deviceCount?: number;
+        vapidConfigured?: boolean;
+      };
+      if (data.ok) {
+        setMsg(`Test sent to ${data.deviceCount ?? 0} device(s). Lock your phone — it should appear.`);
+      } else {
+        setMsg(data.error ?? "Test failed.");
+      }
+    } catch {
+      setMsg("Network error sending the test.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3 rounded-xl border px-4 py-4" style={{ borderColor: 'var(--color-border-card)', background: 'var(--color-surface-secondary)' }}>
+      <div className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+        Push notifications (works when phone is locked)
+      </div>
+      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+        Get alerts for new orders, cancellations and human-handoff requests even when the app is
+        closed or your phone is locked.
+      </p>
+
+      {status === "unsupported" ? (
+        <div className="rounded-lg bg-amber-100 px-3 py-2 text-xs text-amber-900">
+          This browser can&apos;t receive push. On iPhone you must open the app from your Home
+          Screen (add to Home Screen first), not Safari.
+        </div>
+      ) : null}
+
+      {status === "supported" && !isStandalone ? (
+        <div className="rounded-lg bg-amber-100 px-3 py-2 text-xs text-amber-900">
+          On iPhone, notifications only work when you open Velo.ai from the Home Screen icon (the
+          installed app), not the Safari tab. Open the home-screen app, then tap Enable here.
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap gap-2">
+        {!enabled ? (
+          <Button type="button" onClick={() => void enable()} disabled={busy || status === "unsupported"}>
+            {busy ? "Working…" : "Enable notifications"}
+          </Button>
+        ) : (
+          <Button type="button" variant="ghost" onClick={() => void disable()} disabled={busy}>
+            {busy ? "Working…" : "Disable"}
+          </Button>
+        )}
+        <Button type="button" variant="ghost" onClick={() => void sendTest()} disabled={busy}>
+          Send test notification
+        </Button>
+      </div>
+
+      {msg ? (
+        <div className="rounded-lg px-3 py-2 text-xs" style={{ background: 'var(--color-surface-primary)', color: 'var(--color-text-primary)' }}>
+          {msg}
+        </div>
+      ) : null}
     </div>
   );
 }
