@@ -308,6 +308,24 @@ export async function POST(req: NextRequest) {
     if (body.object !== "whatsapp_business_account") return new NextResponse("OK", { status: 200 });
 
     const entry = body.entry?.[0]?.changes?.[0]?.value;
+
+    // ── Handle delivery/read status updates from Meta ─────────────────────────
+    // Meta sends these separately from messages — the payload has `statuses` but no `messages`.
+    if (entry?.statuses && entry.statuses.length > 0) {
+      for (const statusObj of entry.statuses as Array<{ id?: string; status?: string; timestamp?: string }>) {
+        const wamid = statusObj.id;
+        const metaStatus = statusObj.status; // "sent" | "delivered" | "read" | "failed"
+        if (!wamid || !metaStatus) continue;
+        if (metaStatus === "failed") continue; // Could map to "error" but we already handle send errors at send-time.
+        const deliveryStatus = metaStatus === "read" ? "read" : metaStatus === "delivered" ? "delivered" : "sent";
+        await supabaseAdmin
+          .from("messages")
+          .update({ delivery_status: deliveryStatus })
+          .eq("wa_message_id", wamid);
+      }
+      return new NextResponse("OK", { status: 200 });
+    }
+
     if (!entry?.messages || !entry.messages[0]) return new NextResponse("OK", { status: 200 });
 
     const messageObj = entry.messages[0];

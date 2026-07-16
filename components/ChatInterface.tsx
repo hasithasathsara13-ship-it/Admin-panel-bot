@@ -17,6 +17,7 @@ import {
   Phone,
   Video,
   Smile,
+  Check,
   CheckCheck,
   Loader2,
   RefreshCw,
@@ -60,7 +61,7 @@ const FALLBACK_TEMPLATES = [
 
 /** Extended when DB has reply/edit + WhatsApp id columns (see backend/supabase/messages_chat_enhancements.sql). */
 const MSG_SELECT_EXTENDED =
-  "id, role, content, created_at, reply_to_id, reply_snippet, edited_at, wa_message_id";
+  "id, role, content, created_at, reply_to_id, reply_snippet, edited_at, wa_message_id, delivery_status";
 const MSG_SELECT_BASIC = "id, role, content, created_at";
 
 function isMissingChatColumnsError(err: { message?: string } | null): boolean {
@@ -77,7 +78,7 @@ function isMissingChatColumnsError(err: { message?: string } | null): boolean {
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-type MsgStatus = "sending" | "sent" | "error";
+type MsgStatus = "sending" | "sent" | "delivered" | "read" | "error";
 
 interface Message {
   id: string;
@@ -86,6 +87,7 @@ interface Message {
   time: string;        // formatted display time
   isoTime: string;     // ISO string for cursor-based pagination
   status?: MsgStatus;  // only set for optimistic messages
+  deliveryStatus?: "sent" | "delivered" | "read" | null; // from DB column
   replyToId?: string | null;
   replySnippet?: string | null;
   editedAt?: string | null;
@@ -436,6 +438,7 @@ function isHiddenMarkerMessage(content: string): boolean {
 function rowToMessage(row: Record<string, unknown>): Message {
   const iso = String(row.created_at ?? new Date().toISOString());
   const role = String(row.role ?? "");
+  const ds = row.delivery_status != null ? String(row.delivery_status) : null;
   return {
     id: String(row.id),
     sender: role === "user" ? "customer" : "ai",
@@ -443,6 +446,7 @@ function rowToMessage(row: Record<string, unknown>): Message {
     time: fmtBubbleTime(iso),
     isoTime: iso,
     status: "sent",
+    deliveryStatus: (ds === "read" || ds === "delivered" || ds === "sent") ? ds : null,
     replyToId: row.reply_to_id ? String(row.reply_to_id) : null,
     replySnippet:
       row.reply_snippet != null && String(row.reply_snippet).trim()
@@ -729,13 +733,28 @@ function ChatBubble({
             {isAI ? (
               isSending ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--wa-bubble-meta)]" />
-              ) : (
-                <CheckCheck
-                  className={[
-                    "w-3.5 h-3.5 shrink-0",
-                    msg.status === "sent" ? "text-[#53bdeb]" : "text-[var(--wa-bubble-meta)]",
-                  ].join(" ")}
-                />
+              ) : isError ? null : (
+                (() => {
+                  // Determine tick state: deliveryStatus from DB takes priority, fall back to optimistic status
+                  const ds = msg.deliveryStatus;
+                  const isRead = ds === "read";
+                  const isDelivered = ds === "delivered" || isRead;
+                  // Double tick = delivered or read; single tick = sent only
+                  if (isDelivered) {
+                    return (
+                      <CheckCheck
+                        className={[
+                          "w-3.5 h-3.5 shrink-0",
+                          isRead ? "text-[#53bdeb]" : "text-[var(--wa-bubble-meta)]",
+                        ].join(" ")}
+                      />
+                    );
+                  }
+                  // Single gray tick = sent to server, not yet delivered
+                  return (
+                    <Check className="w-3.5 h-3.5 shrink-0 text-[var(--wa-bubble-meta)]" />
+                  );
+                })()
               )
             ) : null}
           </div>
