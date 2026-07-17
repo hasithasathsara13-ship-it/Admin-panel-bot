@@ -1285,6 +1285,8 @@ export function ChatInterface() {
   const prevScrollHeightRef = useRef<number>(0);
   const messagesRef = useRef<Message[]>([]);
   const activePhoneRef = useRef<string | null>(null);
+  // Tracks locally-deleted message ids so polling/realtime don't re-add them
+  const deletedIdsRef = useRef<Set<string>>(new Set());
 
   messagesRef.current = messages;
   activePhoneRef.current = activePhone;
@@ -1596,6 +1598,8 @@ export function ChatInterface() {
 
           // Hidden system markers (e.g. order-cancelled) must not appear in chat or sidebar.
           if (isHiddenMarkerMessage(newMsg.content)) return;
+          // Skip messages the user just deleted locally
+          if (deletedIdsRef.current.has(String(newMsg.id))) return;
 
           if (phone === openPhone) {
             setMessages((prev) => {
@@ -1735,7 +1739,10 @@ export function ChatInterface() {
       const rows = bootstrapping
         ? [...(data as Record<string, unknown>[])].reverse()
         : (data as Record<string, unknown>[]);
-      const additions = rows.map(rowToMessage).filter((m) => !isHiddenMarkerMessage(m.content));
+      const additions = rows
+        .map(rowToMessage)
+        .filter((m) => !isHiddenMarkerMessage(m.content))
+        .filter((m) => !deletedIdsRef.current.has(String(m.id)));
 
       setMessages((prev) => {
         const byId = new Map(prev.map((m) => [m.id, m]));
@@ -2242,16 +2249,21 @@ export function ChatInterface() {
       ) {
         return;
       }
+      // Record the id so polling/realtime won't re-add it before the DB delete propagates
+      deletedIdsRef.current.add(String(msg.id));
+      // Optimistically remove from UI immediately
+      setMessages((prev) => prev.filter((m) => m.id !== msg.id));
+
       const { error } = await supabase
         .from("messages")
         .delete()
         .eq("id", msg.id)
         .eq("shop_id", shopId);
       if (error) {
+        // Rollback: allow it to reappear and inform the user
+        deletedIdsRef.current.delete(String(msg.id));
         window.alert(error.message);
-        return;
       }
-      setMessages((prev) => prev.filter((m) => m.id !== msg.id));
     },
     [shopId],
   );
@@ -2260,40 +2272,10 @@ export function ChatInterface() {
     if (!supabase || !shopId || !editingMessage) return;
     const next = editDraft.trim();
     if (!next) return;
-    const waId = editingMessage.waMessageId?.trim();
-    if (waId && activePhone) {
-      try {
-        const waRes = await fetch("/api/admin-edit-message", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            phone_number: activePhone,
-            message: next,
-            wa_message_id: waId,
-            shop_id: shopId,
-          }),
-        });
-        if (!waRes.ok) {
-          let detail = `HTTP ${waRes.status}`;
-          try {
-            const j = (await waRes.json()) as { error?: unknown; details?: unknown };
-            const parts = [j?.error, j?.details].filter(Boolean);
-            if (parts.length) detail = parts.map(String).join(" — ").slice(0, 480);
-          } catch {
-            /* ignore */
-          }
-          window.alert(
-            `Could not update the message on the customer's WhatsApp. ${detail}\n\nIf this keeps failing, check Meta Cloud API message-edit requirements (time window, Graph version). The dashboard was not updated.`,
-          );
-          return;
-        }
-      } catch (e) {
-        window.alert(
-          `Network error while contacting WhatsApp: ${e instanceof Error ? e.message : String(e)}`,
-        );
-        return;
-      }
-    }
+
+    // NOTE: We only edit the message in our dashboard inbox. The Meta Cloud API
+    // does NOT support editing an already-sent message (using context.message_id
+    // would send a NEW reply message, not edit it). So we update the local record only.
 
     const editedAt = new Date().toISOString();
     let { error } = await supabase
@@ -2329,7 +2311,7 @@ export function ChatInterface() {
       setEditingMessage(null);
       setEditDraft("");
     }
-  }, [supabase, shopId, editingMessage, editDraft, activePhone]);
+  }, [supabase, shopId, editingMessage, editDraft]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Input handlers
