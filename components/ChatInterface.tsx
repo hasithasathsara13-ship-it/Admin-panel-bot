@@ -2254,64 +2254,58 @@ export function ChatInterface() {
       // Optimistically remove from UI immediately
       setMessages((prev) => prev.filter((m) => m.id !== msg.id));
 
-      const { error } = await supabase
-        .from("messages")
-        .delete()
-        .eq("id", msg.id)
-        .eq("shop_id", shopId);
-      if (error) {
-        // Rollback: allow it to reappear and inform the user
+      // Delete via server route (service role) to bypass RLS restrictions
+      try {
+        const res = await fetch("/api/admin-delete-message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: msg.id, shop_id: shopId }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          deletedIdsRef.current.delete(String(msg.id));
+          window.alert(`Could not delete message: ${data.error || res.status}`);
+        }
+      } catch (e) {
         deletedIdsRef.current.delete(String(msg.id));
-        window.alert(error.message);
+        window.alert(`Network error deleting message: ${e instanceof Error ? e.message : String(e)}`);
       }
     },
     [shopId],
   );
 
   const commitEditMessage = useCallback(async () => {
-    if (!supabase || !shopId || !editingMessage) return;
+    if (!shopId || !editingMessage) return;
     const next = editDraft.trim();
     if (!next) return;
 
     // NOTE: We only edit the message in our dashboard inbox. The Meta Cloud API
-    // does NOT support editing an already-sent message (using context.message_id
-    // would send a NEW reply message, not edit it). So we update the local record only.
-
-    const editedAt = new Date().toISOString();
-    let { error } = await supabase
-      .from("messages")
-      .update({ content: next, edited_at: editedAt })
-      .eq("id", editingMessage.id)
-      .eq("shop_id", shopId);
-
-    if (error && isMissingChatColumnsError(error)) {
-      const r2 = await supabase
-        .from("messages")
-        .update({ content: next })
-        .eq("id", editingMessage.id)
-        .eq("shop_id", shopId);
-      error = r2.error;
-      if (!error) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === editingMessage.id ? { ...m, content: next } : m,
-          ),
-        );
+    // does NOT support editing an already-sent message. Update via server route
+    // (service role) to bypass RLS restrictions.
+    try {
+      const res = await fetch("/api/admin-update-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingMessage.id, shop_id: shopId, content: next }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        window.alert(`Could not edit message: ${data.error || res.status}`);
+        return;
       }
-    } else if (!error) {
+      const data = await res.json().catch(() => ({}));
+      const editedAt = data.edited_at ?? new Date().toISOString();
       setMessages((prev) =>
         prev.map((m) =>
           m.id === editingMessage.id ? { ...m, content: next, editedAt } : m,
         ),
       );
-    }
-
-    if (error) window.alert(error.message);
-    else {
       setEditingMessage(null);
       setEditDraft("");
+    } catch (e) {
+      window.alert(`Network error editing message: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }, [supabase, shopId, editingMessage, editDraft]);
+  }, [shopId, editingMessage, editDraft]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Input handlers
