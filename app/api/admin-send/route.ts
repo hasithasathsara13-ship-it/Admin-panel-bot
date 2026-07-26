@@ -38,6 +38,53 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // ── Check connection mode — route to Baileys bridge for WhatsApp Web businesses
+    if (supabaseAdmin) {
+      const { data: bizRow, error: bizErr } = await supabaseAdmin
+        .from("businesses")
+        .select("connection_mode")
+        .eq("id", shopIdClean)
+        .maybeSingle();
+      
+      // If the column doesn't exist, bizErr will be set — ignore and fall through to Meta API
+      const mode = bizErr ? null : (bizRow as { connection_mode?: string } | null)?.connection_mode;
+      console.log(`[admin-send] shop=${shopIdClean} connection_mode=${mode} bizErr=${bizErr?.message ?? "none"}`);
+      if (mode === "whatsapp_web") {
+        // Route through Baileys bridge server
+        const bridgeUrl = process.env.BAILEYS_BRIDGE_URL || "http://localhost:3001";
+        const bridgeSecret = process.env.BAILEYS_BRIDGE_SECRET || "";
+        try {
+          // Strip @lid or other WhatsApp internal suffixes — bridge needs plain digits
+          const cleanPhoneForBridge = String(phone_number).replace(/@.*/g, "").replace(/[^\d]/g, "");
+          const bridgeRes = await fetch(`${bridgeUrl}/message/send-text`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-bridge-secret": bridgeSecret,
+            },
+            body: JSON.stringify({ shop_id: shopIdClean, phone_number: cleanPhoneForBridge, message }),
+          });
+          const bridgeData = await bridgeRes.json().catch(() => ({}));
+          console.log(`[admin-send] Bridge response: status=${bridgeRes.status} data=${JSON.stringify(bridgeData)} phone=${cleanPhoneForBridge}`);
+          if (!bridgeRes.ok) {
+            return NextResponse.json(
+              { error: bridgeData.error || "Bridge send failed" },
+              { status: bridgeRes.status },
+            );
+          }
+          return NextResponse.json({
+            ok: true,
+            messages: [{ id: bridgeData.wa_message_id ?? null }],
+          });
+        } catch (e) {
+          return NextResponse.json(
+            { error: "Bridge server unavailable" },
+            { status: 503 },
+          );
+        }
+      }
+    }
     const token = await resolveMetaApiToken(shopIdClean);
     const phoneId = await resolveWhatsappPhoneNumberId(shopIdClean);
 

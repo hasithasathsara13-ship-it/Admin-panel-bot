@@ -18,6 +18,7 @@ export default function AddBusinessPage() {
     meta_phone_id: "",
     meta_api_token: "",
     waba_id: "",
+    connection_mode: "whatsapp_web" as "cloud_api" | "whatsapp_web",
     crm_access: "bot_only",
     bot_mode: "full_ecommerce",
     bot_enabled: true,
@@ -51,6 +52,7 @@ export default function AddBusinessPage() {
     payload.enable_reviews = form.enable_reviews;
     payload.billing_plan = form.billing_plan;
     payload.billing_cycle = form.billing_cycle;
+    payload.connection_mode = form.connection_mode;
 
     const res = await fetch("/api/velo-admin/businesses", {
       method: "POST",
@@ -70,9 +72,11 @@ export default function AddBusinessPage() {
   }
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold text-white">Add Business</h1>
-      <p className="mt-1 text-sm text-white/70">Create a new workspace with WhatsApp configuration.</p>
+    <div className="mx-auto w-full max-w-3xl px-4 py-8">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl font-bold text-white">Add Business</h1>
+        <p className="mt-2 text-sm text-white/60">Create a new workspace with WhatsApp configuration.</p>
+      </div>
 
       {error && (
         <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
@@ -80,7 +84,7 @@ export default function AddBusinessPage() {
         </div>
       )}
 
-      <form onSubmit={(e) => void onSubmit(e)} className="mt-6 space-y-6">
+      <form onSubmit={(e) => void onSubmit(e)} className="space-y-5">
         {/* Basic Info */}
         <section className="rounded-2xl border border-white/10 bg-[#0c101c]/80 p-5">
           <h2 className="text-sm font-semibold text-white mb-4">Business Details</h2>
@@ -127,6 +131,56 @@ export default function AddBusinessPage() {
                 disabled={busy}
               />
             </label>
+          </div>
+        </section>
+
+        {/* Connection Mode */}
+        <section className="rounded-2xl border border-white/10 bg-[#0c101c]/80 p-5">
+          <h2 className="text-sm font-semibold text-white mb-1">📱 WhatsApp Connection Mode</h2>
+          <p className="text-[11px] text-white/50 mb-4">How this business connects to WhatsApp.</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setForm((f) => ({ ...f, connection_mode: "whatsapp_web" }))}
+              className={[
+                "rounded-xl border p-4 text-left transition-all",
+                form.connection_mode === "whatsapp_web"
+                  ? "border-emerald-500/50 bg-emerald-500/15 ring-1 ring-inset ring-emerald-500/30"
+                  : "border-white/10 bg-white/[0.02] hover:border-white/20",
+              ].join(" ")}
+            >
+              <div className="text-2xl">📲</div>
+              <div className="mt-2 text-sm font-bold text-white">QR Code / Pairing</div>
+              <div className="mt-1 text-[11px] text-white/50 leading-snug">
+                Free messaging. Business owner scans QR or enters phone number. Best for small businesses.
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[9px] font-semibold text-emerald-300">FREE</span>
+                <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[9px] font-semibold text-blue-300">EDIT/DELETE</span>
+              </div>
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setForm((f) => ({ ...f, connection_mode: "cloud_api" }))}
+              className={[
+                "rounded-xl border p-4 text-left transition-all",
+                form.connection_mode === "cloud_api"
+                  ? "border-indigo-500/50 bg-indigo-500/15 ring-1 ring-inset ring-indigo-500/30"
+                  : "border-white/10 bg-white/[0.02] hover:border-white/20",
+              ].join(" ")}
+            >
+              <div className="text-2xl">☁️</div>
+              <div className="mt-2 text-sm font-bold text-white">Meta Cloud API</div>
+              <div className="mt-1 text-[11px] text-white/50 leading-snug">
+                Official API. Requires Meta credentials. Templates, verified badge. Best for large businesses.
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                <span className="rounded-full bg-indigo-500/15 px-2 py-0.5 text-[9px] font-semibold text-indigo-300">OFFICIAL</span>
+                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-semibold text-amber-300">TEMPLATES</span>
+              </div>
+            </button>
           </div>
         </section>
 
@@ -257,7 +311,8 @@ export default function AddBusinessPage() {
           </div>
         </section>
 
-        {/* Meta Configuration */}
+        {/* Meta Configuration (only for Cloud API mode) */}
+        {form.connection_mode === "cloud_api" && (
         <section className="rounded-2xl border border-white/10 bg-[#0c101c]/80 p-5">
           <h2 className="text-sm font-semibold text-white mb-1">WhatsApp API Configuration</h2>
           <p className="text-[11px] text-white/50 mb-4">
@@ -297,6 +352,7 @@ export default function AddBusinessPage() {
             </label>
           </div>
         </section>
+        )}
 
         {/* Brand Voice */}
         <section className="rounded-2xl border border-white/10 bg-[#0c101c]/80 p-5">
@@ -314,11 +370,11 @@ export default function AddBusinessPage() {
         </section>
 
         {/* Submit */}
-        <div className="flex gap-3">
+        <div className="flex justify-center gap-3 pt-2">
           <button
             type="submit"
             disabled={busy}
-            className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm disabled:opacity-40"
+            className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 disabled:opacity-40 transition-all hover:shadow-emerald-500/30"
           >
             {busy ? "Creating…" : "Create Business"}
           </button>

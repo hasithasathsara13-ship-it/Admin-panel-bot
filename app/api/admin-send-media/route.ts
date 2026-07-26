@@ -113,9 +113,11 @@ export async function POST(req: NextRequest) {
 
     let normalizedType: string;
     let convertedAudio: { buffer: Buffer; mime: string; filename: string } | null = null;
+    let rawAudioBuf: Buffer | null = null;
 
     if (kind === "audio") {
-      const rawBuf = Buffer.from(await file.arrayBuffer());
+      rawAudioBuf = Buffer.from(await file.arrayBuffer());
+      const rawBuf = rawAudioBuf;
       if (rawBuf.length === 0) {
         return NextResponse.json(
           { error: "Empty audio recording" },
@@ -164,6 +166,105 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+
+    // Check connection mode — for QR businesses, media isn't supported via bridge yet
+    // Return a user-friendly message instead of crashing with OAuth error
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (sbUrl && sbKey) {
+        const admin = createClient(sbUrl, sbKey);
+        const { data: bizRow } = await admin
+          .from("businesses")
+          .select("connection_mode")
+          .eq("id", shopIdClean)
+          .maybeSingle();
+        const mode = (bizRow as { connection_mode?: string } | null)?.connection_mode;
+        if (mode === "whatsapp_web") {
+          // Route media through Baileys bridge
+          const bridgeUrl = process.env.BAILEYS_BRIDGE_URL || "http://localhost:3001";
+          const bridgeSecret = process.env.BAILEYS_BRIDGE_SECRET || "";
+          const cleanPhone = String(phoneNumber).replace(/@.*/g, "").replace(/[^\d]/g, "");
+
+          if (kind === "audio") {
+            // For Baileys: convert to OGG, upload to storage, send URL
+            let audioBuf: Buffer;
+            try {
+              const { encodeAudioBufferForBaileysOgg } = await import("@/lib/convertWebmForWhatsApp");
+              const ext = inferFfmpegAudioInputExt(lowerName, rawType) || "webm";
+              const converted = await encodeAudioBufferForBaileysOgg(rawAudioBuf!, ext);
+              audioBuf = converted.buffer;
+            } catch {
+              audioBuf = rawAudioBuf!;
+            }
+
+            // Upload to Supabase Storage for both dashboard playback and bridge sending
+            const audioFileName = `voice-${Date.now()}.ogg`;
+            const storagePath = `bridge/${shopIdClean}/sent/${audioFileName}`;
+            const { error: upErr } = await admin.storage.from("product-images").upload(storagePath, audioBuf, { contentType: "audio/ogg" });
+            if (upErr) {
+              return NextResponse.json({ error: "Audio upload failed: " + upErr.message }, { status: 500 });
+            }
+            const { data: urlData } = admin.storage.from("product-images").getPublicUrl(storagePath);
+            const audioUrl = urlData?.publicUrl || "";
+
+            // Send via bridge using the URL (better compatibility than raw buffer)
+            const bridgeRes = await fetch(`${bridgeUrl}/message/send-audio`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-bridge-secret": bridgeSecret },
+              body: JSON.stringify({
+                shop_id: shopIdClean,
+                phone_number: cleanPhone,
+                audio_base64: audioBuf.toString("base64"),
+                audio_url: audioUrl,
+                mimetype: "audio/ogg; codecs=opus",
+              }),
+            });
+            const bridgeData = await bridgeRes.json().catch(() => ({}));
+            if (!bridgeRes.ok) {
+              return NextResponse.json({ error: bridgeData.error || "Bridge audio send failed" }, { status: bridgeRes.status });
+            }
+            // Return the storage URL so dashboard can play it
+            return NextResponse.json({ ok: true, media_id: audioUrl, wa_message_id: bridgeData.wa_message_id, is_bridge: true, content_url: audioUrl });
+          } else {
+            // For images: we need a public URL. Upload to Supabase Storage first, then send URL to bridge
+            const imgBuffer = Buffer.from(await file.arrayBuffer());
+            const fileName = `bridge-img-${Date.now()}.${normalizedType.split("/")[1] || "jpg"}`;
+            const { data: uploadData, error: uploadErr } = await admin
+              .storage
+              .from("product-images")
+              .upload(`bridge/${shopIdClean}/${fileName}`, imgBuffer, { contentType: normalizedType });
+            
+            if (uploadErr) {
+              return NextResponse.json({ error: "Failed to upload image: " + uploadErr.message }, { status: 500 });
+            }
+
+            const { data: urlData } = admin.storage.from("product-images").getPublicUrl(`bridge/${shopIdClean}/${fileName}`);
+            const publicUrl = urlData?.publicUrl;
+            if (!publicUrl) {
+              return NextResponse.json({ error: "Could not get public URL for image" }, { status: 500 });
+            }
+
+            const bridgeRes = await fetch(`${bridgeUrl}/message/send-image`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-bridge-secret": bridgeSecret },
+              body: JSON.stringify({
+                shop_id: shopIdClean,
+                phone_number: cleanPhone,
+                image_url: publicUrl,
+              }),
+            });
+            const bridgeData = await bridgeRes.json().catch(() => ({}));
+            if (!bridgeRes.ok) {
+              return NextResponse.json({ error: bridgeData.error || "Bridge image send failed" }, { status: bridgeRes.status });
+            }
+            return NextResponse.json({ ok: true, media_id: publicUrl, wa_message_id: bridgeData.wa_message_id, is_bridge: true, content_url: publicUrl });
+          }
+        }
+      }
+    } catch {}
+
     const token = await resolveMetaApiToken(shopIdClean);
     const phoneId = await resolveWhatsappPhoneNumberId(shopIdClean);
     if (!token || !phoneId) {

@@ -1037,7 +1037,7 @@ function ConversationRow({
 // Main ChatInterface component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function ChatInterface() {
+export function ChatInterface({ connectionMode = "cloud_api" }: { connectionMode?: "cloud_api" | "whatsapp_web" } = {}) {
   // ── State ──────────────────────────────────────────────────────────────────
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [convsLoading, setConvsLoading] = useState(true);
@@ -1262,6 +1262,9 @@ export function ChatInterface() {
     }, 60_000);
     return () => clearInterval(interval);
   }, [messages]);
+
+  // QR-based businesses have no 24h window restriction — use this in the render
+  const isPast24HoursActive = connectionMode === "cloud_api" ? isPast24Hours : false;
 
   // Close template menu when clicking outside
   useEffect(() => {
@@ -2035,6 +2038,8 @@ export function ChatInterface() {
       const payload = (await sendRes.json()) as {
         media_id?: string;
         wa_message_id?: string;
+        is_bridge?: boolean;
+        content_url?: string;
       };
       const mediaId = typeof payload.media_id === "string" ? payload.media_id : "";
       const waWamid =
@@ -2048,6 +2053,11 @@ export function ChatInterface() {
         return;
       }
 
+      // For bridge businesses, store the URL directly; for Meta API, use wa-media: format
+      const messageContent = payload.content_url
+        ? payload.content_url
+        : `wa-media:${mediaId}:image`;
+
       const { data, error } = await supabase
         .from("messages")
         .insert([
@@ -2055,7 +2065,7 @@ export function ChatInterface() {
             shop_id: shopId,
             phone_number: activePhone,
             role: "model",
-            content: `wa-media:${mediaId}:image`,
+            content: messageContent,
           },
         ])
         .select("id, created_at")
@@ -2090,7 +2100,7 @@ export function ChatInterface() {
                 id: realId,
                 isoTime: realIso,
                 time: fmtBubbleTime(realIso),
-                content: `wa-media:${mediaId}:image`,
+                content: messageContent,
                 status: "sent",
                 ...(waWamid ? { waMessageId: waWamid } : {}),
               }
@@ -2160,6 +2170,8 @@ export function ChatInterface() {
       const payload = (await sendRes.json()) as {
         media_id?: string;
         wa_message_id?: string;
+        is_bridge?: boolean;
+        content_url?: string;
       };
       const mediaId = typeof payload.media_id === "string" ? payload.media_id : "";
       const waWamid =
@@ -2173,6 +2185,9 @@ export function ChatInterface() {
         return;
       }
 
+      // For bridge businesses, voice was sent but we don't have a playback URL — store marker
+      const audioContent = payload.is_bridge && payload.content_url ? payload.content_url : payload.is_bridge ? "[Voice note sent]" : `wa-media:${mediaId}:audio`;
+
       const { data, error } = await supabase
         .from("messages")
         .insert([
@@ -2180,7 +2195,7 @@ export function ChatInterface() {
             shop_id: shopId,
             phone_number: activePhone,
             role: "model",
-            content: `wa-media:${mediaId}:audio`,
+            content: audioContent,
           },
         ])
         .select("id, created_at")
@@ -2215,7 +2230,7 @@ export function ChatInterface() {
                 id: realId,
                 isoTime: realIso,
                 time: fmtBubbleTime(realIso),
-                content: `wa-media:${mediaId}:audio`,
+                content: audioContent,
                 status: "sent",
                 ...(waWamid ? { waMessageId: waWamid } : {}),
               }
@@ -2254,6 +2269,24 @@ export function ChatInterface() {
       // Optimistically remove from UI immediately
       setMessages((prev) => prev.filter((m) => m.id !== msg.id));
 
+      // For QR businesses: also delete on customer's WhatsApp via bridge
+      if (connectionMode === "whatsapp_web" && msg.waMessageId && activePhone) {
+        try {
+          await fetch("/api/wa-bridge", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "delete",
+              shop_id: shopId,
+              phone_number: activePhone,
+              wa_message_id: msg.waMessageId,
+            }),
+          });
+        } catch {
+          // Non-blocking: still delete from inbox even if bridge delete fails
+        }
+      }
+
       // Delete via server route (service role) to bypass RLS restrictions
       try {
         const res = await fetch("/api/admin-delete-message", {
@@ -2271,7 +2304,7 @@ export function ChatInterface() {
         window.alert(`Network error deleting message: ${e instanceof Error ? e.message : String(e)}`);
       }
     },
-    [shopId],
+    [shopId, connectionMode, activePhone],
   );
 
   const commitEditMessage = useCallback(async () => {
@@ -2279,9 +2312,26 @@ export function ChatInterface() {
     const next = editDraft.trim();
     if (!next) return;
 
-    // NOTE: We only edit the message in our dashboard inbox. The Meta Cloud API
-    // does NOT support editing an already-sent message. Update via server route
-    // (service role) to bypass RLS restrictions.
+    // For QR businesses: also edit on customer's WhatsApp via bridge
+    if (connectionMode === "whatsapp_web" && editingMessage.waMessageId && activePhone) {
+      try {
+        await fetch("/api/wa-bridge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "edit",
+            shop_id: shopId,
+            phone_number: activePhone,
+            wa_message_id: editingMessage.waMessageId,
+            new_text: next,
+          }),
+        });
+      } catch {
+        // Non-blocking: still update inbox even if bridge edit fails
+      }
+    }
+
+    // Update in dashboard inbox via server route (service role)
     try {
       const res = await fetch("/api/admin-update-message", {
         method: "POST",
@@ -2305,7 +2355,7 @@ export function ChatInterface() {
     } catch (e) {
       window.alert(`Network error editing message: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }, [shopId, editingMessage, editDraft]);
+  }, [shopId, editingMessage, editDraft, connectionMode, activePhone]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Input handlers
@@ -2690,7 +2740,7 @@ export function ChatInterface() {
             {/* Input area */}
             <div className="shrink-0 flex flex-col bg-[var(--color-surface-solid)] border-t border-[var(--color-border)] pb-[max(12px,env(safe-area-inset-bottom))]">
               {/* 24h window closed banner */}
-              {isPast24Hours && (
+              {isPast24HoursActive && (
                 <div className="flex items-center gap-2 px-3 py-2 border-b border-amber-200/60 bg-amber-50/80">
                   <Clock className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
                   <p className="text-[11px] text-amber-700">
@@ -2720,25 +2770,26 @@ export function ChatInterface() {
               ) : null}
               <div className="flex min-w-0 items-end gap-1.5 px-3 py-2.5">
               {!voice.isActive && (
-              <button type="button" onClick={() => setEmojiOpen((v) => !v)} className={["p-2 rounded-xl hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0 mb-0.5", isPast24Hours ? "opacity-50 cursor-not-allowed" : ""].join(" ")} aria-label="Emoji" disabled={isPast24Hours}>
+              <button type="button" onClick={() => setEmojiOpen((v) => !v)} className={["p-2 rounded-xl hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0 mb-0.5", isPast24HoursActive ? "opacity-50 cursor-not-allowed" : ""].join(" ")} aria-label="Emoji" disabled={isPast24HoursActive}>
                 <Smile className="w-5 h-5" />
               </button>
               )}
 
-              {/* Template + button (always visible, primary action when 24h window closed) */}
-              {!voice.isActive && (
+              {/* Template + button (only for Cloud API businesses) */}
+              {!voice.isActive && connectionMode === "cloud_api" && (
               <div ref={templateContainerRef} className="relative flex-shrink-0 mb-0.5">
+
                 <button
                   type="button"
                   onClick={() => setTemplateMenuOpen((v) => !v)}
                   className={[
                     "p-2 rounded-xl transition-colors",
-                    isPast24Hours
+                    isPast24HoursActive
                       ? "bg-amber-100 text-amber-700 hover:bg-amber-200 ring-1 ring-amber-300"
                       : "hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]",
                   ].join(" ")}
                   aria-label="Template messages"
-                  title={isPast24Hours ? "Send a template message (24h window closed)" : "Send a template message"}
+                  title={isPast24HoursActive ? "Send a template message (24h window closed)" : "Send a template message"}
                 >
                   <Plus className="w-5 h-5" />
                 </button>
@@ -2841,7 +2892,7 @@ export function ChatInterface() {
                       <Star className="w-4 h-4 text-amber-500" />
                       {sendingReviews ? "Sending..." : "Send Reviews"}
                     </button>
-                    {!isPast24Hours && (
+                    {!isPast24HoursActive && (
                       <button
                         type="button"
                         onClick={() => {
@@ -2864,10 +2915,10 @@ export function ChatInterface() {
                 <button
                   type="button"
                   onClick={() => void voice.startRecording()}
-                  disabled={isPast24Hours}
+                  disabled={isPast24HoursActive}
                   className={[
                     "p-2 rounded-xl transition-colors flex-shrink-0 mb-0.5",
-                    isPast24Hours
+                    isPast24HoursActive
                       ? "opacity-50 cursor-not-allowed text-[var(--color-text-tertiary)]"
                       : "hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]",
                   ].join(" ")}
@@ -2875,6 +2926,17 @@ export function ChatInterface() {
                   title="Record voice note"
                 >
                   <Mic className="w-5 h-5" />
+                </button>
+              )}
+              {/* Image attach button (for QR businesses — Cloud API has it inside template menu) */}
+              {!voice.isActive && connectionMode === "whatsapp_web" && (
+                <button
+                  type="button"
+                  onClick={() => imageInputRef.current?.click()}
+                  className="p-2 rounded-xl hover:bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)] transition-colors flex-shrink-0 mb-0.5"
+                  aria-label="Attach image"
+                >
+                  <Plus className="w-5 h-5" />
                 </button>
               )}
               <input
@@ -2918,8 +2980,8 @@ export function ChatInterface() {
                   </div>
                 </div>
               ) : (
-                <div className={["relative flex min-w-0 flex-1 items-end overflow-visible rounded-2xl border transition-all", isPast24Hours ? "border-gray-300 bg-gray-200 opacity-50 cursor-not-allowed" : "border-[var(--color-border)] bg-[var(--color-surface-secondary)] focus-within:border-[var(--color-accent)] focus-within:shadow-[0_0_0_3px_var(--color-accent-glow)]"].join(" ")}>
-                  {emojiOpen && !isPast24Hours ? (
+                <div className={["relative flex min-w-0 flex-1 items-end overflow-visible rounded-2xl border transition-all", isPast24HoursActive ? "border-gray-300 bg-gray-200 opacity-50 cursor-not-allowed" : "border-[var(--color-border)] bg-[var(--color-surface-secondary)] focus-within:border-[var(--color-accent)] focus-within:shadow-[0_0_0_3px_var(--color-accent-glow)]"].join(" ")}>
+                  {emojiOpen && !isPast24HoursActive ? (
                     <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-20 grid grid-cols-5 gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-solid)] p-2 shadow-lg">
                       {quickEmojis.map((emoji) => (
                         <button
@@ -2939,10 +3001,10 @@ export function ChatInterface() {
                     value={inputText}
                     onChange={handleInput}
                     onKeyDown={handleKeyDown}
-                    placeholder={isPast24Hours ? "24h window closed. Use a template to reply." : "Type a message…"}
+                    placeholder={isPast24HoursActive ? "24h window closed. Use a template to reply." : "Type a message…"}
                     rows={1}
-                    disabled={isPast24Hours}
-                    className={["max-h-32 w-full min-w-0 resize-none border-none bg-transparent px-4 py-3 text-[16px] md:text-[13.5px] leading-relaxed outline-none focus:border-transparent focus:shadow-none focus:ring-0", isPast24Hours ? "cursor-not-allowed placeholder:text-amber-600/70" : ""].join(" ")}
+                    disabled={isPast24HoursActive}
+                    className={["max-h-32 w-full min-w-0 resize-none border-none bg-transparent px-4 py-3 text-[16px] md:text-[13.5px] leading-relaxed outline-none focus:border-transparent focus:shadow-none focus:ring-0", isPast24HoursActive ? "cursor-not-allowed placeholder:text-amber-600/70" : ""].join(" ")}
                     style={{ boxShadow: "none" }}
                   />
                 </div>
@@ -2953,12 +3015,12 @@ export function ChatInterface() {
                 id="chat-send-button"
                 onClick={voice.isActive ? voice.sendRecording : sendMessage}
                 disabled={
-                  !voice.isActive && (!inputText.trim() || !shopId || !activePhone || isPast24Hours)
+                  !voice.isActive && (!inputText.trim() || !shopId || !activePhone || isPast24HoursActive)
                 }
                 title={
                   voice.isActive
                     ? "Send voice note"
-                    : isPast24Hours
+                    : isPast24HoursActive
                       ? "24h window closed — use a template message"
                       : !shopId
                         ? "No shop selected — sign in again or pick a store"
@@ -2971,7 +3033,7 @@ export function ChatInterface() {
                   "flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center mb-0.5 transition-all duration-200",
                   voice.isActive
                     ? "bg-[#25d366] text-white shadow-md hover:bg-[#20bd5a] hover:scale-105"
-                    : inputText.trim() && shopId && activePhone && !isPast24Hours
+                    : inputText.trim() && shopId && activePhone && !isPast24HoursActive
                       ? "bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-dark)] text-white shadow-[var(--shadow-glow-indigo)] hover:shadow-lg hover:scale-105"
                       : "bg-[var(--color-surface-secondary)] text-[var(--color-text-tertiary)] cursor-not-allowed",
                 ].join(" ")}

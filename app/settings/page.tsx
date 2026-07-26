@@ -308,6 +308,8 @@ export default function SettingsPage() {
                   onChange={setBrandVoice}
                   disabled
                 />
+                {/* Disconnect WhatsApp (for QR-based businesses) */}
+                <DisconnectWhatsApp />
               </div>
             ) : null}
 
@@ -829,6 +831,63 @@ function Field({
         disabled={disabled}
         className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm font-medium text-zinc-900 outline-none focus:border-zinc-400 disabled:bg-zinc-100"
       />
+    </div>
+  );
+}
+
+function DisconnectWhatsApp() {
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const shopId = typeof window !== "undefined" ? getActiveShopId() : null;
+
+  async function handleDisconnect() {
+    if (!shopId) return;
+    if (!window.confirm("Disconnect WhatsApp? You will need to scan the QR code again to reconnect.")) return;
+    setDisconnecting(true);
+    setStatus(null);
+    try {
+      const res = await fetch("/api/wa-bridge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "disconnect", shop_id: shopId }),
+      });
+      if (res.ok) {
+        // Also reset the DB flag
+        if (supabase) {
+          await supabase.from("businesses").update({ wa_web_connected: false }).eq("id", shopId);
+        }
+        setStatus("✓ WhatsApp disconnected. Scan QR again to reconnect.");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setStatus(`Failed: ${data.error || "Unknown error"}`);
+      }
+    } catch {
+      setStatus("Could not reach the bridge server.");
+    }
+    setDisconnecting(false);
+  }
+
+  return (
+    <div className="rounded-xl border px-4 py-4 space-y-3" style={{ borderColor: "var(--color-border-card)", background: "var(--color-surface-secondary)" }}>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-semibold" style={{ color: "var(--color-text-primary)" }}>WhatsApp Connection</div>
+          <div className="text-xs mt-0.5" style={{ color: "var(--color-text-tertiary)" }}>Unlink your WhatsApp account from this dashboard.</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleDisconnect()}
+          disabled={disconnecting}
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
+        >
+          {disconnecting ? "Disconnecting…" : "Disconnect"}
+        </button>
+      </div>
+      {status && (
+        <div className={["text-xs rounded-lg px-3 py-2", status.startsWith("✓") ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"].join(" ")}>
+          {status}
+        </div>
+      )}
     </div>
   );
 }

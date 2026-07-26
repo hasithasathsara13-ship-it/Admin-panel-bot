@@ -14,6 +14,8 @@ type BusinessDetail = {
   meta_phone_id: string | null;
   meta_api_token: string | null;
   waba_id: string | null;
+  connection_mode: string | null;
+  wa_web_connected: boolean | null;
   bot_mode: string | null;
   bot_enabled: boolean | null;
   enable_ordering: boolean | null;
@@ -72,6 +74,8 @@ export default function BusinessDetailPage() {
   const [enableReviews, setEnableReviews] = useState(false);
   // Product access
   const [crmAccess, setCrmAccess] = useState("bot_only");
+  // Connection mode
+  const [connectionMode, setConnectionMode] = useState<"cloud_api" | "whatsapp_web">("cloud_api");
 
   const loadBusiness = useCallback(async () => {
     setLoading(true);
@@ -105,6 +109,7 @@ export default function BusinessDetailPage() {
     setEnableOrdering(found.enable_ordering !== false);
     setEnableReviews(found.enable_reviews === true);
     setCrmAccess(found.crm_access || "bot_only");
+    setConnectionMode((found.connection_mode as "cloud_api" | "whatsapp_web") || "cloud_api");
     setLoading(false);
   }, [id, router]);
 
@@ -136,6 +141,7 @@ export default function BusinessDetailPage() {
         enable_ordering: enableOrdering,
         enable_reviews: enableReviews,
         crm_access: crmAccess,
+        connection_mode: connectionMode,
       }),
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -395,7 +401,47 @@ export default function BusinessDetailPage() {
         </div>
       </section>
 
-      {/* Meta Configuration */}
+      {/* WhatsApp Connection Mode */}
+      <section className="rounded-2xl border border-white/10 bg-[#0c101c]/80 p-5">
+        <h2 className="text-sm font-semibold text-white mb-1">📱 WhatsApp Connection Mode</h2>
+        <p className="text-[11px] text-white/50 mb-4">How this business connects to WhatsApp.</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setConnectionMode("whatsapp_web")}
+            className={[
+              "rounded-xl border p-4 text-left transition-all",
+              connectionMode === "whatsapp_web"
+                ? "border-emerald-500/50 bg-emerald-500/15 ring-1 ring-inset ring-emerald-500/30"
+                : "border-white/10 bg-white/[0.02] hover:border-white/20",
+            ].join(" ")}
+          >
+            <div className="text-2xl">📲</div>
+            <div className="mt-2 text-sm font-bold text-white">QR Code / Pairing</div>
+            <div className="mt-1 text-[11px] text-white/50 leading-snug">Free messaging. Scan QR or enter phone number. Edit/delete works on customer phone.</div>
+            {biz.wa_web_connected && connectionMode === "whatsapp_web" && (
+              <div className="mt-2 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 inline-block">● Connected</div>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConnectionMode("cloud_api")}
+            className={[
+              "rounded-xl border p-4 text-left transition-all",
+              connectionMode === "cloud_api"
+                ? "border-indigo-500/50 bg-indigo-500/15 ring-1 ring-inset ring-indigo-500/30"
+                : "border-white/10 bg-white/[0.02] hover:border-white/20",
+            ].join(" ")}
+          >
+            <div className="text-2xl">☁️</div>
+            <div className="mt-2 text-sm font-bold text-white">Meta Cloud API</div>
+            <div className="mt-1 text-[11px] text-white/50 leading-snug">Official API. Templates, verified badge. Requires Meta credentials below.</div>
+          </button>
+        </div>
+      </section>
+
+      {/* Meta Configuration (only for Cloud API mode) */}
+      {connectionMode === "cloud_api" && (
       <section className="rounded-2xl border border-white/10 bg-[#0c101c]/80 p-5">
         <h2 className="text-sm font-semibold text-white mb-1">WhatsApp API Configuration</h2>
         <p className="text-[11px] text-white/50 mb-4">Meta Business Manager credentials for this business.</p>
@@ -414,6 +460,7 @@ export default function BusinessDetailPage() {
           </label>
         </div>
       </section>
+      )}
 
       {/* Brand Voice */}
       <section className="rounded-2xl border border-white/10 bg-[#0c101c]/80 p-5">
@@ -430,11 +477,51 @@ export default function BusinessDetailPage() {
       </section>
 
       {/* Meta info */}
+      {/* Meta info */}
       <div className="text-[11px] text-white/40 space-y-0.5">
         <p>Created: {biz.created_at ? new Date(biz.created_at).toLocaleString() : "—"}</p>
         <p>Last marked paid: {biz.billing_last_marked_paid_at ? new Date(biz.billing_last_marked_paid_at).toLocaleString() : "Never"}</p>
         <p>Quota hard block: {biz.billing_quota_hard_block ? "Yes" : "No"}</p>
       </div>
+
+      {/* Danger Zone */}
+      <section className="rounded-2xl border border-red-500/30 bg-red-500/5 p-5">
+        <h2 className="text-sm font-semibold text-red-400">⚠️ Danger Zone</h2>
+        <p className="mt-1 text-[11px] text-white/50">
+          Permanently delete this business and ALL related data — messages, orders, customers, products, images, voice notes. This action cannot be undone.
+        </p>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={async () => {
+            const confirmed = window.confirm(
+              `DELETE "${biz.business_name}"?\n\nThis will permanently remove:\n• All messages & conversations\n• All orders\n• All customers\n• All products & images\n• WhatsApp session\n\nThis CANNOT be undone.`
+            );
+            if (!confirmed) return;
+            const doubleConfirm = window.prompt('Type "DELETE" to confirm:');
+            if (doubleConfirm !== "DELETE") return;
+            
+            setSaving(true);
+            setError(null);
+            const res = await fetch("/api/velo-admin/delete-business", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ shop_id: id }),
+            });
+            const data = (await res.json().catch(() => ({}))) as { error?: string };
+            setSaving(false);
+            if (!res.ok) {
+              setError(data.error || "Delete failed");
+            } else {
+              router.push("/velo-admin/businesses");
+            }
+          }}
+          className="mt-4 rounded-xl border border-red-500/40 bg-red-500/20 px-5 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-500/30 transition-colors disabled:opacity-40"
+        >
+          {saving ? "Deleting…" : "Delete This Business"}
+        </button>
+      </section>
     </div>
   );
 }

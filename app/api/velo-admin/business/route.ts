@@ -47,6 +47,7 @@ export async function PATCH(req: NextRequest) {
     enable_reviews?: boolean;
     crm_access?: string;
     crm_billing_cycle?: string;
+    connection_mode?: string;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -180,6 +181,13 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Invalid crm_billing_cycle" }, { status: 400 });
     }
     patch.crm_billing_cycle = c;
+  }
+
+  if (body.connection_mode !== undefined) {
+    const cm = String(body.connection_mode);
+    if (["cloud_api", "whatsapp_web"].includes(cm)) {
+      patch.connection_mode = cm;
+    }
   }
 
   if (Object.keys(patch).length === 0) {

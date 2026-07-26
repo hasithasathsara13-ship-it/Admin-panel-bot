@@ -96,3 +96,70 @@ export async function convertWebmForWhatsApp(
 ): Promise<{ buffer: Buffer; mime: WhatsAppAudioMime; filename: string }> {
   return encodeAudioBufferForWhatsAppM4a(webmBuffer, "webm");
 }
+
+/**
+ * Convert audio to OGG Opus format (for Baileys/WhatsApp Web voice notes).
+ * WhatsApp Web PTT requires OGG Opus, mono, 48kHz.
+ */
+export async function encodeAudioBufferForBaileysOgg(
+  inputBuffer: Buffer,
+  inputExt: string,
+): Promise<{ buffer: Buffer; mime: string; filename: string }> {
+  ensureFfmpegPath();
+  const ext = inputExt.toLowerCase().replace(/^\./, "");
+  if (!ALLOWED_INPUT_EXT.has(ext)) {
+    throw new Error(`Unsupported audio input extension: ${inputExt}`);
+  }
+
+  const id = randomBytes(8).toString("hex");
+  const inPath = path.join(os.tmpdir(), `wa-ogg-in-${id}.${ext}`);
+  const oggPath = path.join(os.tmpdir(), `wa-ogg-out-${id}.ogg`);
+
+  await writeFile(inPath, inputBuffer);
+
+  try {
+    const buffer = await new Promise<Buffer>((resolve, reject) => {
+      ffmpeg(inPath)
+        .noVideo()
+        .audioChannels(1)
+        .audioFrequency(48000)
+        .audioCodec("libopus")
+        .audioBitrate("32k")
+        // WhatsApp voice notes (PTT) must be Opus/OGG. Android is lenient, but iOS
+        // WhatsApp is strict about OGG page structure and requires a clean, single
+        // continuous Opus stream with VoIP application and standard 20ms frames.
+        // Fragmenting flags (flush_packets/packet_loss) make iOS reject the file
+        // with "audio no longer available", so we keep the stream simple + clean.
+        .addOutputOptions([
+          "-application",
+          "voip",
+          "-frame_duration",
+          "20",
+          "-vbr",
+          "on",
+          "-compression_level",
+          "10",
+          "-avoid_negative_ts",
+          "make_zero",
+          "-map_metadata",
+          "-1",
+        ])
+        .format("ogg")
+        .on("end", () => {
+          void readFile(oggPath).then(resolve).catch(reject);
+        })
+        .on("error", reject)
+        .save(oggPath);
+    });
+    if (!buffer.length) {
+      throw new Error("FFmpeg produced an empty OGG buffer");
+    }
+    return { buffer, mime: "audio/ogg; codecs=opus", filename: "voice.ogg" };
+  } catch (err) {
+    console.error("[encodeAudioBufferForBaileysOgg] failed:", err);
+    throw err;
+  } finally {
+    await unlink(inPath).catch(() => {});
+    await unlink(oggPath).catch(() => {});
+  }
+}

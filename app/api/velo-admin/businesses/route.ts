@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
     enable_reviews?: boolean;
     billing_plan?: string;
     billing_cycle?: string;
+    connection_mode?: string;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -213,6 +214,10 @@ export async function POST(req: NextRequest) {
 
   if (body.bot_mode !== undefined && ["full_ecommerce", "reviews_only", "info_only"].includes(String(body.bot_mode))) {
     insert.bot_mode = body.bot_mode;
+  }
+
+  if (body.connection_mode !== undefined && ["cloud_api", "whatsapp_web"].includes(String(body.connection_mode))) {
+    insert.connection_mode = body.connection_mode;
   }
 
   if (body.bot_enabled !== undefined) insert.bot_enabled = Boolean(body.bot_enabled);
