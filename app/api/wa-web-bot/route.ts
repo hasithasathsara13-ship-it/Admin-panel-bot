@@ -77,6 +77,11 @@ function userWantsProductPhotos(text: string): boolean {
   return /photo|photos|pics?|pictures?|image|balanna|pennannam|pennanna|display|show me|pic ekak|photo ekak|pictures ekak/i.test(text);
 }
 
+function userConfirmedPhotoSend(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  return /^(ow|yes|ok|okay|hari|danna|ewanna|yep|sure|please|pls)\b|balanna|pennanna|danna|ewanna/i.test(t);
+}
+
 function inferDiscussedProduct(
   currentText: string,
   history: HistMsg[],
@@ -108,6 +113,21 @@ function userWantsReviews(text: string): boolean {
   return /reviews?|feedback|balanna|ratings?|testimonial|reviews ekak|customer.*say|happy customer/i.test(text);
 }
 
+function detectCheckoutThreadLock(historyNewestFirst: HistMsg[], pendingOrder: unknown): boolean {
+  if (pendingOrder) return true;
+  const recent = historyNewestFirst.slice(0, 22);
+  const modelBlob = recent.filter((m) => m.role === "model").map((m) => m.content.toLowerCase()).join("\n");
+  const payment = /cod|bank transfer|cash on delivery|payment eka karanne|payment method|will you be paying|paying by/.test(modelBlob);
+  const address = /delivery detail|delivery address|district|phone number|kalin dapu address|previous address|provide your delivery|name, address/.test(modelBlob);
+  const bankProof = /receipt|sampath bank|account:\s*\d|payment proof/.test(modelBlob);
+  return payment || address || bankProof;
+}
+
+function userExplicitNewProductBrowseIntent(text: string): boolean {
+  const t = text.toLowerCase();
+  return /what do you sell|what.*sell|api gawa.*thiy|list.*product|all item|all shoe|browse|photos of other|wenath ekak|other product|mata mona mona|show me everything|any other|change (the|to) (product|item|order)/i.test(t);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST — bridge calls this with an inbound customer message
 // Body: { shop_id, phone_number, text }
@@ -120,7 +140,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { shop_id?: string; phone_number?: string; text?: string };
+  let body: { shop_id?: string; phone_number?: string; text?: string; media_type?: string; media_url?: string };
   try {
     body = await req.json();
   } catch {
@@ -129,9 +149,16 @@ export async function POST(req: NextRequest) {
 
   const shopId = String(body.shop_id ?? "").trim();
   const fromCustomer = String(body.phone_number ?? "").replace(/[^\d]/g, "");
-  const customerMessageText = String(body.text ?? "").trim();
+  let customerMessageText = String(body.text ?? "").trim();
+  const mediaType = body.media_type as "audio" | "image" | undefined;
+  const mediaUrl = body.media_url || null;
 
-  if (!shopId || !fromCustomer || !customerMessageText) {
+  if (!shopId || !fromCustomer) {
+    return NextResponse.json({ ok: false, error: "Missing fields" }, { status: 400 });
+  }
+
+  // For media messages, we may have no text — that's okay, we'll transcribe or analyze
+  if (!customerMessageText && !mediaType) {
     return NextResponse.json({ ok: false, error: "Missing fields" }, { status: 400 });
   }
 
@@ -237,6 +264,70 @@ export async function POST(req: NextRequest) {
       }
     } catch (quotaErr) {
       console.warn("[wa-web-bot] quota check failed (non-blocking):", quotaErr);
+    }
+
+    // ── Audio transcription (Whisper) ─────────────────────────────────────────
+    let imageUrlForVision: string | null = null;
+    if (mediaType === "audio" && mediaUrl) {
+      try {
+        // Fetch product names for Whisper prompt hints
+        const { data: prodHints } = await supabaseAdmin
+          .from("products")
+          .select("name")
+          .eq("shop_id", shopId)
+          .limit(12);
+        const productNames = (prodHints ?? []).map((p: { name: string }) => p.name);
+        const whisperPrompt = [
+          "Sinhala, Singlish, Sri Lankan WhatsApp shop voice.",
+          "Common: api gawa, thiyanawa, thiyenne, danata, oyata, oya, denna, puluwan, nehe, hari, ow, eka, size, COD, bank transfer, delivery, address, photo, balanna, pennanna, Rs.",
+          productNames.length ? `Products: ${productNames.join(", ")}` : "",
+        ].filter(Boolean).join(" ");
+
+        // Download audio from Supabase Storage URL
+        const audioRes = await fetch(mediaUrl);
+        if (audioRes.ok) {
+          const audioBlob = await audioRes.blob();
+          const ext = mediaUrl.includes(".ogg") ? "ogg" : mediaUrl.includes(".mp3") ? "mp3" : "ogg";
+          const mimeType = ext === "mp3" ? "audio/mpeg" : "audio/ogg";
+          const file = new File([audioBlob], `voice.${ext}`, { type: mimeType });
+
+          const transcription = await getOpenAI().audio.transcriptions.create({
+            file,
+            model: "whisper-1",
+            prompt: whisperPrompt,
+          });
+
+          const transcript = transcription.text?.trim() || "";
+          // Only use transcript if it's meaningful (not just noise)
+          if (transcript.length >= 2 && !/^[\s.,!?…\-]+$/u.test(transcript)) {
+            customerMessageText = transcript;
+            console.log(`[wa-web-bot] Whisper transcript for ${fromCustomer}: "${transcript.slice(0, 80)}"`);
+          } else {
+            // Weak/empty transcript — don't reply
+            return NextResponse.json({ ok: true, bubbles: [], images: [] });
+          }
+        }
+      } catch (whisperErr) {
+        console.warn("[wa-web-bot] Whisper transcription failed:", whisperErr);
+        // If transcription fails but we have placeholder text, skip bot reply
+        if (!customerMessageText || customerMessageText === "🎤 Voice message") {
+          return NextResponse.json({ ok: true, bubbles: [], images: [] });
+        }
+      }
+    }
+
+    // ── Image vision setup ────────────────────────────────────────────────────
+    if (mediaType === "image" && mediaUrl) {
+      imageUrlForVision = mediaUrl;
+      // If no text was provided, use a prompt that tells the AI an image was sent
+      if (!customerMessageText || customerMessageText === "📎 Media") {
+        customerMessageText = "[Customer sent a photo]";
+      }
+    }
+
+    // If after all processing we still have no message text, skip
+    if (!customerMessageText) {
+      return NextResponse.json({ ok: true, bubbles: [], images: [] });
     }
 
     // ── Fetch products, pending order, history, reviews ────────────────────────
@@ -392,13 +483,28 @@ INVENTORY (only offer items with Stock > 0):
 ${inventoryText}`;
 
     // ── OpenAI ─────────────────────────────────────────────────────────────────
-    const aiModel = useSinglish ? "gpt-4.1" : "gpt-4.1-mini";
+    // Use vision-capable model when image is present
+    const aiModel = imageUrlForVision ? "gpt-4.1" : (useSinglish ? "gpt-4.1" : "gpt-4.1-mini");
+
+    // Build the user message content — multi-part if image is present
+    let userMessageContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+    if (imageUrlForVision) {
+      const imagePrompt =
+        "The customer sent a photo. Reply like a human: briefly acknowledge the image, then if it looks like a product do visual match per brand voice; if it looks like a bank receipt/payment proof, verify it and confirm payment; if unclear, ask one short friendly question.";
+      userMessageContent = [
+        { type: "text", text: `${imagePrompt}\n\nCustomer message: ${customerMessageText}` },
+        { type: "image_url", image_url: { url: imageUrlForVision } },
+      ];
+    } else {
+      userMessageContent = customerMessageText;
+    }
+
     const response = await getOpenAI().chat.completions.create({
       model: aiModel,
       messages: [
         { role: "system", content: systemInstruction },
         ...openAiMessages,
-        { role: "user", content: customerMessageText },
+        { role: "user", content: userMessageContent as any },
       ],
       temperature: 0.85,
       frequency_penalty: 0.25,
@@ -493,7 +599,7 @@ ${inventoryText}`;
     if (rawAiResponse.includes("[SEND_REVIEWS]") && reviewImageUrls.length > 0) {
       images.push(...reviewImageUrls.slice(0, 6));
     }
-    if (userWantsProductPhotos(customerMessageText) && images.length === 0 && allProducts?.length) {
+    if ((userWantsProductPhotos(customerMessageText) || userConfirmedPhotoSend(customerMessageText)) && images.length === 0 && allProducts?.length) {
       const discussed = inferDiscussedProduct(customerMessageText, validHistory, allProducts);
       if (discussed) images.push(...extractProductImageUrls(discussed));
     }
@@ -516,6 +622,25 @@ ${inventoryText}`;
       await supabaseAdmin.from("messages").insert([
         { phone_number: fromCustomer, role: "model", content: rawAiResponse, shop_id: shopId },
       ]);
+    }
+
+    // ── Checkout reminder scheduling ──────────────────────────────────────────
+    // If the bot just asked for payment/address/delivery info, schedule a reminder
+    // in case the customer doesn't respond within ~30 minutes.
+    try {
+      if (orderingEnabled && cleanText && customer) {
+        const checkoutSignals =
+          /payment eka karanne|bank transfer.*cod|cod.*bank transfer|cash on delivery|delivery.*address|district|provide your delivery|receipt|payment proof/i.test(cleanText);
+        if (checkoutSignals) {
+          const reminderAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+          await supabaseAdmin
+            .from("customers")
+            .update({ checkout_reminder_at: reminderAt, checkout_reminder_sent: false })
+            .eq("id", customer.id);
+        }
+      }
+    } catch (reminderErr) {
+      console.warn("[wa-web-bot] checkout reminder scheduling failed (non-blocking):", reminderErr);
     }
 
     return NextResponse.json({
