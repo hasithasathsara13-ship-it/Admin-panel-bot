@@ -571,16 +571,16 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="space-y-6 theme-section-glow">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-3xl font-bold tracking-tight text-[var(--color-text-primary)]">
-            Categories
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--color-text-primary)]">
+            Products
           </h1>
-          <p className="mt-1.5 text-sm text-[var(--color-text-secondary)]">Discover and manage your catalog.</p>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Discover and manage your catalog.</p>
         </div>
-        <div className="flex gap-2 shrink-0 sm:self-start">
-          <Button variant="ghost" onClick={() => setReviewsOpen(true)} className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100">
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="ghost" onClick={() => setReviewsOpen(true)} className="border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]">
             ⭐ Reviews
           </Button>
           <Link href="/add-product">
