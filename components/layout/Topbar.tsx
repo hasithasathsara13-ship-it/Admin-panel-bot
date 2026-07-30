@@ -271,11 +271,6 @@ export function Topbar({
                       they arrive.
                     </p>
                   )}
-                  <p className="mt-2 rounded-lg border border-[var(--panel-border-soft)] bg-[var(--color-surface-secondary)] px-2 py-2 text-center text-[11px] leading-relaxed text-[var(--panel-subtext)]">
-                    {notificationsEnabled
-                      ? "Browser alerts are on (when this tab is open and permission is granted)."
-                      : "Turn the switch on for extra browser alerts, in addition to this list."}
-                  </p>
                 </div>
                 <div className="flex flex-col gap-1.5 border-t border-[var(--panel-border)] p-2">
                   <div className="flex gap-2">
