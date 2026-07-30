@@ -71,12 +71,7 @@ export default function BroadcastPage() {
       </div>
 
       {/* Bulk Broadcast CTA */}
-      <div className={`rounded-2xl border border-[var(--color-border-card)] p-6 text-center relative ${connectionMode === "whatsapp_web" ? "opacity-40 pointer-events-none select-none" : ""}`} style={{ background: "var(--color-surface-solid)" }}>
-        {connectionMode === "whatsapp_web" && (
-          <div className="absolute inset-0 flex items-center justify-center z-10 rounded-2xl" style={{ background: "rgba(0,0,0,0.3)" }}>
-            <p className="text-sm font-medium text-white bg-black/60 rounded-lg px-4 py-2">Only available for Meta API businesses</p>
-          </div>
-        )}
+      <div className="rounded-2xl border border-[var(--color-border-card)] p-6 text-center" style={{ background: "var(--color-surface-solid)" }}>
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl mb-4" style={{ background: "var(--color-accent-light)" }}>
           <svg className="w-7 h-7" style={{ color: "var(--color-accent)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 1 1 0-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 0 1-1.44-4.282m3.102.069a18.03 18.03 0 0 1-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 0 1 8.835 2.535M10.34 6.66a23.847 23.847 0 0 0 8.835-2.535m0 0A23.74 23.74 0 0 0 18.795 3m.38 1.125a23.91 23.91 0 0 1 1.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 0 0 1.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 0 1 0 3.46" />
