@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { getActiveShopId } from "../lib/activeShopId";
 
-type SessionStatus = "disconnected" | "connecting" | "qr" | "connected";
+type SessionStatus = "disconnected" | "connecting" | "qr" | "connected" | "wrong_number";
 
 type SessionInfo = {
   status: SessionStatus;
   qrCode: string | null;
   pairingCode: string | null;
+  phoneNumber?: string | null;
 };
 
 /**
@@ -38,7 +39,7 @@ export function WhatsAppConnect({ onConnected }: { onConnected: () => void }) {
 
   // Poll for status updates while connecting/scanning — poll faster (2s)
   useEffect(() => {
-    if (sessionInfo.status === "connected" || sessionInfo.status === "disconnected") return;
+    if (sessionInfo.status === "connected" || sessionInfo.status === "disconnected" || sessionInfo.status === "wrong_number") return;
     const interval = setInterval(() => void checkStatus(), 2000);
     return () => clearInterval(interval);
   }, [sessionInfo.status]);
@@ -147,6 +148,32 @@ export function WhatsAppConnect({ onConnected }: { onConnected: () => void }) {
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" style={{ borderColor: "var(--color-accent)", borderTopColor: "transparent" }} />
               <p className="text-xs" style={{ color: "var(--color-text-tertiary)" }}>Loading your chats...</p>
             </div>
+          </div>
+        )}
+
+        {/* Wrong number error state */}
+        {sessionInfo.status === "wrong_number" && (
+          <div className="mt-6 flex flex-col items-center gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10">
+              <svg className="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+              </svg>
+            </div>
+            <div className="text-sm font-semibold text-red-500">Wrong WhatsApp Number</div>
+            <p className="text-xs text-center max-w-sm" style={{ color: "var(--color-text-secondary)" }}>
+              The scanned WhatsApp account ({sessionInfo.phoneNumber}) does not match the registered business number. Please scan the correct WhatsApp account.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSessionInfo({ status: "disconnected", qrCode: null, pairingCode: null });
+                setError(null);
+              }}
+              className="mt-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90"
+              style={{ background: "var(--color-accent)" }}
+            >
+              Try Again
+            </button>
           </div>
         )}
 

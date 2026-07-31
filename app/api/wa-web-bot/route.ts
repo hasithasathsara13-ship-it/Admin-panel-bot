@@ -4,6 +4,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { sendPushToShop } from "@/lib/webPush";
 
@@ -13,17 +14,27 @@ import { sendPushToShop } from "@/lib/webPush";
  * The Meta Cloud API bot lives in /api/bot-webhook and is intentionally left
  * UNTOUCHED. This is a parallel implementation for `connection_mode = whatsapp_web`
  * businesses. The bridge server calls this after storing an inbound customer
- * message. We generate the AI reply here (OpenAI key + DB live on Vercel) and
- * return { bubbles, images } for the bridge to send through the live WA session.
+ * message. We generate the AI reply here (Claude for text/vision + Whisper for
+ * audio) and return { bubbles, images } for the bridge to send through WA.
  *
  * Auth: x-bridge-secret header must match BAILEYS_BRIDGE_SECRET.
  */
 
+// OpenAI is kept ONLY for Whisper audio transcription (Claude has no audio API).
 let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI {
   if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   return _openai;
 }
+
+// Claude handles all text replies and image analysis (better Sinhala fluency).
+let _anthropic: Anthropic | null = null;
+function getAnthropic(): Anthropic {
+  if (!_anthropic) _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  return _anthropic;
+}
+
+const CLAUDE_MODEL = "claude-haiku-4-5";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -316,12 +327,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Image vision setup ────────────────────────────────────────────────────
+    // ── Image vision setup (Claude needs base64) ───────────────────────────────
+    let imageBase64ForVision: { data: string; mediaType: string } | null = null;
     if (mediaType === "image" && mediaUrl) {
       imageUrlForVision = mediaUrl;
       // If no text was provided, use a prompt that tells the AI an image was sent
       if (!customerMessageText || customerMessageText === "📎 Media") {
         customerMessageText = "[Customer sent a photo]";
+      }
+      // Download the image and convert to base64 for Claude's vision API
+      try {
+        const imgRes = await fetch(mediaUrl);
+        if (imgRes.ok) {
+          const contentType = imgRes.headers.get("content-type") || "image/jpeg";
+          const arrayBuf = await imgRes.arrayBuffer();
+          imageBase64ForVision = {
+            data: Buffer.from(arrayBuf).toString("base64"),
+            mediaType: contentType.split(";")[0].trim(),
+          };
+        }
+      } catch (imgErr) {
+        console.warn("[wa-web-bot] image fetch for vision failed:", imgErr);
       }
     }
 
@@ -482,35 +508,78 @@ COURIER/DELIVERY: If asked about courier/delivery cost, reply "Courier charge �
 INVENTORY (only offer items with Stock > 0):
 ${inventoryText}`;
 
-    // ── OpenAI ─────────────────────────────────────────────────────────────────
-    // Use vision-capable model when image is present
-    const aiModel = imageUrlForVision ? "gpt-4.1" : (useSinglish ? "gpt-4.1" : "gpt-4.1-mini");
+    // ── Claude (text replies + image vision) ───────────────────────────────────
+    // Build the final user message. If an image is present, use multi-part content.
+    type ClaudeContentBlock =
+      | { type: "text"; text: string }
+      | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
 
-    // Build the user message content — multi-part if image is present
-    let userMessageContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
-    if (imageUrlForVision) {
+    let finalUserContent: string | ClaudeContentBlock[];
+    if (imageBase64ForVision) {
       const imagePrompt =
         "The customer sent a photo. Reply like a human: briefly acknowledge the image, then if it looks like a product do visual match per brand voice; if it looks like a bank receipt/payment proof, verify it and confirm payment; if unclear, ask one short friendly question.";
-      userMessageContent = [
+      finalUserContent = [
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: imageBase64ForVision.mediaType,
+            data: imageBase64ForVision.data,
+          },
+        },
         { type: "text", text: `${imagePrompt}\n\nCustomer message: ${customerMessageText}` },
-        { type: "image_url", image_url: { url: imageUrlForVision } },
       ];
     } else {
-      userMessageContent = customerMessageText;
+      finalUserContent = customerMessageText;
     }
 
-    const response = await getOpenAI().chat.completions.create({
-      model: aiModel,
-      messages: [
-        { role: "system", content: systemInstruction },
-        ...openAiMessages,
-        { role: "user", content: userMessageContent as any },
-      ],
-      temperature: 0.85,
-      frequency_penalty: 0.25,
-      presence_penalty: 0.1,
-    });
-    const rawAiResponse = response.choices[0].message.content || "";
+    const claudeMessages = [
+      ...openAiMessages.map((m) => ({ role: m.role, content: m.content })),
+      { role: "user" as const, content: finalUserContent },
+    ];
+
+    let rawAiResponse = "";
+    try {
+      // Primary: Claude (better Sinhala fluency)
+      const claudeResponse = await getAnthropic().messages.create({
+        model: CLAUDE_MODEL,
+        max_tokens: 1024,
+        temperature: 0.85,
+        system: systemInstruction,
+        messages: claudeMessages as Anthropic.MessageParam[],
+      });
+      rawAiResponse = claudeResponse.content
+        .filter((block): block is Anthropic.TextBlock => block.type === "text")
+        .map((block) => block.text)
+        .join("")
+        .trim();
+    } catch (claudeErr) {
+      // Fallback: OpenAI (if Claude is down / out of credits / rate-limited)
+      console.warn("[wa-web-bot] Claude failed, falling back to OpenAI:", (claudeErr as Error).message);
+      let userMessageContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+      if (imageUrlForVision) {
+        const imagePrompt =
+          "The customer sent a photo. Reply like a human: briefly acknowledge the image, then if it looks like a product do visual match per brand voice; if it looks like a bank receipt/payment proof, verify it and confirm payment; if unclear, ask one short friendly question.";
+        userMessageContent = [
+          { type: "text", text: `${imagePrompt}\n\nCustomer message: ${customerMessageText}` },
+          { type: "image_url", image_url: { url: imageUrlForVision } },
+        ];
+      } else {
+        userMessageContent = customerMessageText;
+      }
+      const openaiResponse = await getOpenAI().chat.completions.create({
+        model: imageUrlForVision ? "gpt-4.1" : (useSinglish ? "gpt-4.1" : "gpt-4.1-mini"),
+        messages: [
+          { role: "system", content: systemInstruction },
+          ...openAiMessages,
+          { role: "user", content: userMessageContent as any },
+        ],
+        temperature: 0.85,
+        frequency_penalty: 0.25,
+        presence_penalty: 0.1,
+      });
+      rawAiResponse = openaiResponse.choices[0].message.content || "";
+    }
 
     // ── Human handoff tag ──────────────────────────────────────────────────────
     if (rawAiResponse.includes("[HUMAN_HANDOFF]")) {
