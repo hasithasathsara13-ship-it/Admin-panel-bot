@@ -39,7 +39,9 @@ function isVeloTenant(businessName: string, brandVoice: string | null): boolean 
   const nameDeclaresVelo = /(^|[^a-z0-9])velo(?:\.\s*|\s*)ai([^a-z0-9]|$)/i.test(normalizedName);
   const voiceStart = (brandVoice ?? "").trim().slice(0, 500);
   const voiceDeclaresVelo = /^(?:you are\s+)?velo\.?\s*ai(?:'s)?\s+(?:whatsapp\s+)?sales assistant\b/i.test(voiceStart)
-    || /^(?:brand|assistant|identity)\s*:\s*velo\.?\s*ai\s+sales assistant\b/i.test(voiceStart);
+    || /^(?:brand|assistant|identity)\s*:\s*velo\.?\s*ai\s+sales assistant\b/i.test(voiceStart)
+    || /^velo\.?\s*ai\s+sales\s+bot\s+reference\b/i.test(voiceStart)
+    || /\[velo[_\s-]?sales[_\s-]?bot\]/i.test(voiceStart);
   return nameDeclaresVelo || voiceDeclaresVelo;
 }
 
