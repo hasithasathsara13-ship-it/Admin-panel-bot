@@ -48,13 +48,23 @@ function isVeloTenant(businessName: string, brandVoice: string | null): boolean 
 function classifyCurrentLanguage(text: string): LanguageClass {
   if (/[\u0D80-\u0DFF]/u.test(text)) return "sinhala";
   const lower = text.toLowerCase().trim();
-  if (!lower || /^(?:yes|no|ok(?:ay)?|sure|starter|growth|scale|\+?[\d\s().-]+)$/i.test(lower) || /^[\p{L}\p{M} .'-]{2,80}$/u.test(text.trim()) && !/\s/.test(text.trim())) return "ambiguous";
-  const strongSinglish = /\b(kohomada|kiyada|monawa|mokak|puluwan|karanna|denna|balanna|ewanna|thiyen(?:awa|ne)?|tiyen(?:awa|ne)?|nehe|naha|ganna|gaana)\b/gi;
-  const weakSinglish = /\b(mama|mata|oya|oyata|eka|meka|ona|ow|ekak)\b/gi;
-  const strongCount = (lower.match(strongSinglish) ?? []).length;
-  const weakCount = (lower.match(weakSinglish) ?? []).length;
-  if (strongCount >= 1 || weakCount >= 2) return "sinhala";
-  if (/^[\x00-\x7F]+$/.test(text) && /[a-z]/i.test(text) && (/\b(the|is|are|can|could|would|please|hello|about|price|plan|business|order|delivery|payment|want|need|what|how|my|your|thanks?|start|try|demo)\b/i.test(lower) || lower.split(/\s+/).length >= 4)) return "english";
+  if (!lower) return "ambiguous";
+  // Very short generic acknowledgements, plan names, names, or phone numbers: inherit prior language.
+  if (/^(?:yes|no|ok(?:ay)?|sure|hi|hello|starter|growth|scale|\+?[\d\s().-]+)$/i.test(lower)) return "ambiguous";
+  if (/^[\p{L}\p{M} .'-]{2,80}$/u.test(text.trim()) && !/\s/.test(text.trim())) return "ambiguous";
+
+  // Romanized Sinhala (Singlish) markers. Broad set of common tokens and endings.
+  const singlishWords = /\b(mama|mamai|mata|api|apita|oya|oyata|oyage|eyaa|eyage|thibba|thiyen(?:awa|ne|nawa)?|tiyen(?:awa|ne|nawa)?|thiyanwa|tiyanawa|tiyanwaf|tiyanwa|puluwan|puluwanda|bae|baehe|beri|karanna|karanawa|karanne|karaganna|denna|denne|ganna|gaana|ganne|balanna|balanawa|penna|pennanna|ewanna|evanna|hoyanna|danna|dannawa|danne|danata|dan|kohomada|kohomda|monawa|monawada|mokakda|mokada|mokak|kawda|kawuda|kiyada|kiyanne|kiyanna|kiyala|nathi|naha|nehe|nemei|nemi|hari|harida|hodai|honda|hondai|epa|ethakota|ehenam|enne|enna|yanna|yanawa|innawa|inne|wage|witharak|witharai|tikak|podi|loku|passe|issella|ayye|akka|malli|nangi|aiya)\b/gi;
+  const singlishSuffix = /\b\w+(?:nawa|nnam|nawada|krnna|gnna|nnda)\b/gi;
+  const englishWords = /\b(the|is|are|am|was|were|be|been|can|could|would|should|will|please|hello|hey|about|price|prices|pricing|plan|plans|business|order|orders|delivery|payment|want|need|what|when|where|which|how|why|who|my|your|our|their|this|that|these|those|and|or|but|with|for|from|have|has|do|does|thanks?|thank|start|try|demo|show|tell|give|send|yes|no|ok|okay|sure|available|class|classes|teacher|student|students|online|customer|customers|message|messages)\b/gi;
+
+  const singlishCount = (lower.match(singlishWords) ?? []).length + (lower.match(singlishSuffix) ?? []).length;
+  const englishCount = (lower.match(englishWords) ?? []).length;
+
+  // Any clear Singlish token means the customer is writing Sinhala/Singlish, even if English tech words are mixed in.
+  if (singlishCount >= 1) return "sinhala";
+  // Otherwise require genuine English evidence.
+  if (/^[\x00-\x7F]+$/.test(text) && /[a-z]/i.test(text) && englishCount >= 1) return "english";
   return "ambiguous";
 }
 
