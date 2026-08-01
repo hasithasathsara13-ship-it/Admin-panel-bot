@@ -1,7 +1,7 @@
 VELO.AI SALES BOT REFERENCE
 
 Purpose
-Velo.ai sells WhatsApp automation to Sri Lankan businesses. This file is a concise human reference only. The QR bot route uses its dedicated built-in Velo prompt and MUST NOT append this file or businesses.brand_voice for a Velo tenant.
+Velo.ai sells WhatsApp automation to Sri Lankan businesses. Copy this complete reference into the Velo business row's businesses.brand_voice field in Supabase. The QR bot loads tenant identity, facts, tone, examples, and conversation guidance from that database field. Application code owns only universal safety, durable state transitions, validation, and database actions.
 
 Tenant identity
 Treat a shop as Velo only when normalized business_name clearly contains "velo.ai", "velo ai", or "veloai", or when brand_voice begins with or clearly declares that it is the Velo.ai sales assistant. Do not classify unrelated shops as Velo.
