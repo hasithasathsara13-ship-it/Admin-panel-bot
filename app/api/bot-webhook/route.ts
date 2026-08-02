@@ -907,8 +907,8 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
       });
     }
 
-    // Singlish → gpt-4.1 (best, most natural), English → gpt-4.1-mini (faster)
-    const aiModel = useSinglish ? "gpt-4.1" : "gpt-4.1-mini";
+    // Singlish → gpt-4o (best multilingual), English → gpt-4o-mini (faster)
+    const aiModel = useSinglish ? "gpt-4o" : "gpt-4o-mini";
 
     const response = await getOpenAI().chat.completions.create({
       model: aiModel,
