@@ -868,6 +868,10 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
       - Product names, sizes, prices, English words like COD/Bank/delivery/photo/order/cancel STAY IN ENGLISH inside the Sinhala text
       - WRONG (too formal): "ඔබගේ ඇණවුම සාර්ථකව අවලංගු කරන ලදී." → RIGHT: "ඔයාගේ order එක cancel කරා."
       - WRONG (too long): Full paragraph explaining everything → RIGHT: Short punchy reply
+      - AVOID repeating sentence structures. Vary your replies — don't always start with the same word.
+      - Use natural contractions and colloquial forms: "කරනවද" not "කරනවාද", "ඕනද" not "අවශ්‍යද", "ඉන්නකො" not "රැඳී සිටින්න"
+      - END replies naturally — don't always end with "😊" or a question. Sometimes a statement is fine.
+      - If listing something, keep it tight: "Rs.2,500 • size 40-44 තියනවා • COD/Bank Transfer" — not separate lines for each.
       - STRICTLY BANNED: machan, ela, patta, bro, boss, mate, dude, මචන්, බොස්. NEVER.
       - DO NOT ask multiple questions in one message.
       - DO NOT repeat info they already know.
@@ -913,9 +917,9 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
         ...openAiMessages,
         { role: "user", content: userContent },
       ],
-      temperature: 0.85,
-      frequency_penalty: 0.25,
-      presence_penalty: 0.1,
+      temperature: 0.6,
+      frequency_penalty: 0.3,
+      presence_penalty: 0.15,
     });
 
     const rawAiResponse = response.choices[0].message.content || "";
