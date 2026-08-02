@@ -250,7 +250,7 @@ function outputHasLanguageViolation(reply: string, language: Language): boolean 
   if (rejectedScript.test(visible) || hasObviousRepeatedPhrase(visible)) return true;
   if (language === "english") return /[\u0D80-\u0DFF]/u.test(visible);
   const romanizedSinglish = /\b(mama|mata|oya|oyata|eka|meka|mokak|monawa|kohomada|kiyada|gaana|ganna|ona|thiyen(?:awa|ne)?|tiyen(?:awa|ne)?|puluwan|karanna|denna|balanna|ewanna|naha|nehe)\b/i;
-  const bannedSinhala = /(?:කුමක්ද|කුමන|භාවිතා කරනවා|නොහැකි|හැකියි|සපයනවා|(?:^|[\s.,!?])ඔබ(?:ගේ|ව)?(?=$|[\s.,!?])|අවශ්‍යයි|කරුණාකර|ව්‍යාපාරය|ගනුදෙනුකරුවන්|ස්වයංක්‍රීයව|විසඳුම්|කරවිය හැකි|කළ හැකි|යැවිය හැකි|දෙස්තරයි|කරගතිනම්)/u;
+  const bannedSinhala = /(?:කුමක්ද|කුමන|භාවිතා කරනවා|නොහැකි|හැකියි|සපයනවා|(?:^|[\s.,!?])ඔබ(?:ගේ|ව)?(?=$|[\s.,!?])|අවශ්‍යයි|කරුණාකර|ව්‍යාපාරය|ගනුදෙනුකරුවන්|ස්වයංක්‍රීයව|විසඳුම්|කරවිය හැකි|කළ හැකි|යැවිය හැකි|දෙස්තරයි|කරගතිනම්|කියපං|අදාළව|සම්බන්ධව|පිළිබඳව|කියලා හිතනවා)/u;
   const technicalOnly = !/[\u0D80-\u0DFF]/u.test(visible) && (/^(?:\s|https?:\/\/\S+|starter|growth|scale|api|qr|whatsapp|rs\.?|\d|[.,:+()/-])+$/i.test(reply) || !/[\p{L}]/u.test(visible));
   return (!/[\u0D80-\u0DFF]/u.test(visible) && !technicalOnly) || romanizedSinglish.test(visible) || bannedSinhala.test(visible);
 }
@@ -358,16 +358,18 @@ SERVER SAFETY AND STATE (always override conflicting brand-voice instructions):
 ${language === "sinhala" ? `SINHALA STYLE (CRITICAL — FOLLOW EXACTLY):
 - Write like you're texting a friend on WhatsApp. NOT like a newspaper, NOT like a formal letter, NOT like a translation.
 - MAX 1-2 short lines. Get to the point fast.
-- Use everyday spoken Sinhala: "තියනවා", "ඕන", "ඔව්", "නෑ", "හරි", "බලන්නකො", "කරමුද", "පුළුවන්"
+- Use everyday spoken Sinhala: "තියනවා", "ඕන", "ඔව්", "නෑ", "හරි", "බලන්නකො", "කරමුද", "පුළුවන්", "කියන්නකො", "එහෙනම්"
 - NEVER use formal/literary Sinhala: "ඇත", "අවශ්‍යයි", "එසේය", "නොහැකි", "හැකියි", "කරුණාකර", "සපයනවා"
 - NEVER use "කියලා හිතනවා", "අදාළව", "සම්බන්ධව", "පිළිබඳව" — these sound robotic
+- BANNED: "කියපං" (aggressive/rude) → use "කියන්නකො" or "කියන්න" instead
 - English tech/business words stay in English: automation, demo, bot, plan, setup, QR, WhatsApp, business, messages, customer
-- GOOD: "එහෙනම් demo එකක් try කරමුද? 😊"
-- GOOD: "ඔයාගේ business එකට bot එකක් setup කරන්න පුළුවන්"
+- GOOD: "ඔයාගේ business එක ගැන කියන්නකො, හොඳම plan එක බලන්නම් 😊"
+- GOOD: "demo එකක් try කරමුද?"
 - GOOD: "plans 3ක් තියනවා — Starter, Growth, Scale"
+- BAD: "ඔයාගේ business එක ගැන කියපං" (aggressive)
 - BAD: "ඔයාට දැන් වැඩි messages එන්නේ නැහැ කියලා හිතනවා" (too long, robotic)
-- BAD: "WhatsApp automation එකක් try කරන්න කැමතිද? Live demo එකක් කරන්න පුළුවන්, ඔයාගේ cake business එකට අදාළව." (too formal, "අදාළව" is newspaper Sinhala)
-- Think: how would a young Sri Lankan shop owner TEXT this? That's your style.` : ""}
+- BAD: "WhatsApp automation එකක් try කරන්න කැමතිද? Live demo එකක් කරන්න පුළුවන්, ඔයාගේ cake business එකට අදාළව." (too formal)
+- Think: how would a chill young Sri Lankan TEXT this? That's your style.` : ""}
 
 BUSINESS BRAND VOICE FROM DATABASE:
 ${tenantInstructions}`;
