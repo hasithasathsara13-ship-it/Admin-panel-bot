@@ -381,7 +381,7 @@ async function callVeloModel(args: { prompt: string; history: ChatCompletionMess
     : args.text;
   try {
     const response = await getOpenAI().chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4.1",
       temperature: 0.5,
       response_format: { type: "json_schema", json_schema: VELO_SCHEMA },
       messages: [{ role: "system", content: args.prompt }, ...args.history, { role: "user", content: userContent }],
@@ -409,7 +409,7 @@ async function repairLanguage(reply: string, language: Language): Promise<string
   if (!outputHasLanguageViolation(reply, language)) return reply;
   try {
     const response = await getOpenAI().chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4.1",
       temperature: 0.2,
       messages: [
         { role: "system", content: language === "english" ? "Rewrite in pure natural English. Remove every non-English script character. Preserve meaning and || separators. Output only the reply." : "Rewrite as a young Sri Lankan texting on WhatsApp in Sinhala Unicode. Keep it SHORT (1-2 lines max). Use casual spoken Sinhala: තියනවා, ඕන, හරි, පුළුවන්, කරමුද. NEVER use formal/literary: ඇත, අවශ්‍යයි, කියලා හිතනවා, අදාළව, සම්බන්ධව. English tech words stay English. Preserve meaning and || separators. Output only the reply." },
@@ -471,7 +471,7 @@ ${args.brandVoice || "Velo.ai WhatsApp automation for Sri Lankan businesses."}`;
     try {
       const userText = language === "sinhala" ? `[REPLY IN SINHALA UNICODE සිංහල] ${args.text}` : args.text;
       const response = await getOpenAI().chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4.1",
         temperature: 0.5,
         messages: [
           { role: "system", content: postSignupPrompt },
@@ -599,7 +599,7 @@ ${args.brandVoice || "Velo.ai WhatsApp automation for Sri Lankan businesses."}`;
   return finish(reply, output.action === "pricing" || output.action === "features");
 }
 
-async function callGenericModel(args: { system: string; history: ChatCompletionMessageParam[]; text: string; imageUrl: string | null; imageBase64: { data: string; mediaType: string } | null; model: "gpt-4o" | "gpt-4o-mini" }): Promise<string> {
+async function callGenericModel(args: { system: string; history: ChatCompletionMessageParam[]; text: string; imageUrl: string | null; imageBase64: { data: string; mediaType: string } | null; model: "gpt-4.1" | "gpt-4.1-mini" }): Promise<string> {
   const content: ChatCompletionUserMessageParam["content"] = args.imageUrl ? [{ type: "text", text: args.text }, { type: "image_url", image_url: { url: args.imageUrl } }] : args.text;
   try {
     const response = await getOpenAI().chat.completions.create({ model: args.model, temperature: 0.4, messages: [{ role: "system", content: args.system }, ...args.history, { role: "user", content }] });
@@ -780,7 +780,7 @@ Brand voice: ${business.brand_voice || "Friendly and professional."}
 Inventory (offer only positive stock):\n${inventory}
 ${history.length === 0 ? `This is the first reply: briefly welcome the customer to ${business.business_name}, then answer their request.` : "This is an ongoing chat: answer directly without repeating a greeting."}
 Delivery is free if asked. ${userWantsReviews(text) && reviewsEnabled ? "Review request: output [SEND_REVIEWS]." : ""}`;
-    const model = imageUrl || !languageResult.confidentEnglish ? "gpt-4o" : "gpt-4o-mini";
+    const model = imageUrl || !languageResult.confidentEnglish ? "gpt-4.1" : "gpt-4.1-mini";
     let raw = await callGenericModel({ system, history: historyForAi(history), text, imageUrl, imageBase64, model });
     if (!raw.trim()) raw = language === "english" ? "How can I help you?" : "මොනවද දැනගන්න ඕන?";
 
