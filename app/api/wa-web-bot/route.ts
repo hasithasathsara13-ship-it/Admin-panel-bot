@@ -572,7 +572,7 @@ ${args.brandVoice || "Velo.ai WhatsApp automation for Sri Lankan businesses."}`;
   const requestedDemo = state.stage === "sales" && output.action === "start_demo";
   const explicitDemo = asksForDemo(args.text) || (isExplicitDemoAffirmative(args.text) && recentAssistantOfferedDemo(args.history));
   if (requestedDemo && explicitDemo) {
-    const reply = language === "english" ? "Live demo started. I’ll simulate a customer conversation for your business; nothing here is submitted. Type exactly `exit demo` to leave." : "Live demo එක පටන් ගත්තා. ඔයාගේ business එකට customer chat එකක් simulate කරනවා; කිසිම දෙයක් submit වෙන්නේ නෑ. ඉවත් වෙන්න හරියටම `exit demo` type කරන්න.";
+    const reply = language === "english" ? "Demo started! I'll act as a bot for your business. Type `exit demo` when done." : "Demo පටන් ගත්තා! ඔයාගේ business එකට bot එක වගේ act කරනවා. ඉවර වුණාම `exit demo` type කරන්න.";
     if (!await applyPatch({ stage: "demo", language, business_type: output.business_type?.trim().slice(0, 160) || state.business_type, demo_business_name: output.demo_business_name?.trim().slice(0, 160) || state.demo_business_name })) return finish(safeVeloReply(language));
     return finish(reply);
   }
