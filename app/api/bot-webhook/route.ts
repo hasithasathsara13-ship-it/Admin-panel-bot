@@ -876,6 +876,14 @@ ${reviewsEnabled && reviewsText ? `\nYou also have customer review screenshots a
       - DO NOT ask multiple questions in one message.
       - DO NOT repeat info they already know.
 
+      FEW-SHOT SINHALA EXAMPLES (copy this EXACT texting style when replying in Sinhala):
+      Customer: "shoes thiyanawada" → "ඔව් තියනවා! මොන brand එකද ඕන?"
+      Customer: "price kiyadayak" → "Rs.4,500 ක් වෙනවා. Size එක කීයද?"
+      Customer: "delivery free da" → "ඔව්, delivery free. Address එක දෙන්නකො"
+      Customer: "meka stock thiyanawada" → "දැනට stock තියනවා. ගන්නවද?"
+      Customer: "photo pennanna" → "බලන්නකො 👇"
+      (These are NOT instructions - they show you the TONE and LENGTH to match)
+
       ANTI-SPAM & FLOW:
       - Do not paste the same sentence twice. Use || to split into 2-4 short WhatsApp bubbles.
       ${orderingEnabled ? "- If they ask for photos/balanna/penna, send them in the SAME reply via [ATTACH_PRODUCT: Exact Product Name]." : ""}
