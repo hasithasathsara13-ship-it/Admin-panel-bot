@@ -445,9 +445,45 @@ async function handleVelo(args: { shopId: string; phone: string; text: string; b
   }
 
   if (state.stage === "completed" || state.completed_order_id) {
-    const reply = language === "english" ? "Your signup is already confirmed. Our team will contact you shortly." : "ඔයාගේ signup එක දැනටමත් confirm වෙලා. අපේ team එක ඉක්මනින් contact කරයි.";
-    await persistReply(args.shopId, args.phone, reply);
-    return { bubbles: [reply], images: [] };
+    // Signup done — still answer questions intelligently, but never create another signup
+    const postSignupPrompt = `You are the Velo.ai WhatsApp assistant. The customer has ALREADY signed up (plan confirmed, team will contact them).
+
+RULES:
+- NEVER create another signup or order. The signup is done.
+- If they ask about their signup/order status: "අපේ team එක ඉක්මනින් contact කරයි" or "Our team will contact you shortly"
+- If they ask questions about Velo.ai, features, how it works, pricing — answer helpfully from your knowledge.
+- If they ask random questions or just chat — be friendly and helpful.
+- Keep replies SHORT (1-2 lines).
+${language === "sinhala" ? "- Reply in Sinhala Unicode (සිංහල). Use casual texting style. NEVER use formal Sinhala." : "- Reply in English only."}
+
+BUSINESS BRAND VOICE:
+${args.brandVoice || "Velo.ai WhatsApp automation for Sri Lankan businesses."}`;
+
+    try {
+      const userText = language === "sinhala" ? `[REPLY IN SINHALA UNICODE සිංහල] ${args.text}` : args.text;
+      const response = await getOpenAI().chat.completions.create({
+        model: "gpt-4o",
+        temperature: 0.5,
+        messages: [
+          { role: "system", content: postSignupPrompt },
+          ...historyForAi(args.history).slice(-6),
+          { role: "user", content: userText },
+        ],
+      });
+      let reply = response.choices[0]?.message.content?.trim() || (language === "english" ? "Our team will contact you shortly!" : "අපේ team එක ඉක්මනින් contact කරයි!");
+      reply = cleanVisibleReply(reply);
+      // Safety: never let it claim a new signup
+      if (hasSignupConfirmationClaim(reply)) {
+        reply = language === "english" ? "Your signup is already confirmed. Our team will contact you shortly." : "ඔයාගේ signup එක දැනටමත් confirm වෙලා. අපේ team එක ඉක්මනින් contact කරයි.";
+      }
+      await persistReply(args.shopId, args.phone, reply);
+      return { bubbles: splitReply(reply, 3, false), images: [] };
+    } catch (err) {
+      console.warn("[wa-web-bot] post-signup chat failed:", err);
+      const fallback = language === "english" ? "Our team will contact you shortly!" : "අපේ team එක ඉක්මනින් contact කරයි!";
+      await persistReply(args.shopId, args.phone, fallback);
+      return { bubbles: [fallback], images: [] };
+    }
   }
 
   const applyPatch = async (patch: VeloStatePatch): Promise<boolean> => {
