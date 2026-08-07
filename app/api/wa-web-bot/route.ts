@@ -50,7 +50,9 @@ function classifyCurrentLanguage(text: string): LanguageClass {
   const lower = text.toLowerCase().trim();
   if (!lower) return "ambiguous";
   // Very short generic acknowledgements, plan names, names, or phone numbers: inherit prior language.
-  if (/^(?:yes|no|ok(?:ay)?|sure|hi|hello|starter|growth|scale|\+?[\d\s().-]+)$/i.test(lower)) return "ambiguous";
+  if (/^(?:yes|no|ok(?:ay)?|sure|starter|growth|scale|\+?[\d\s().-]+)$/i.test(lower)) return "ambiguous";
+  // English greetings → treat as English
+  if (/^(?:hi|hello|helloo|hey|hii|hiii|yo)$/i.test(lower)) return "english";
   if (/^[\p{L}\p{M} .'-]{2,80}$/u.test(text.trim()) && !/\s/.test(text.trim())) return "ambiguous";
 
   // Romanized Sinhala (Singlish) markers. Broad set of common tokens and endings.

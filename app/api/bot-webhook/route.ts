@@ -258,6 +258,8 @@ function inferDiscussedProduct(
 function customerUsesSinglish(text: string, history: HistMsg[]): boolean {
   // Actual Sinhala Unicode script in the CURRENT message → always Sinhala
   if (/[\u0D80-\u0DFF]/.test(text)) return true;
+  // Pure English greetings → always English regardless of history
+  if (/^(?:hi|hello|helloo|hey|hii|hiii|yo)$/i.test(text.trim())) return false;
   const blob = [text, ...history.slice(0, 8).map((m) => m.content)].join("\n").toLowerCase();
   if (/english please|speak english|in english/i.test(blob)) return false;
   // Sinhala Unicode anywhere in recent history
